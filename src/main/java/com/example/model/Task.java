@@ -1,14 +1,42 @@
 package com.example.model;
 
-/** Модель задачи (Часть 1: обычный POJO, хранится в памяти). */
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.Table;
+
+import java.time.LocalDateTime;
+
+/** Задача - JPA-сущность (таблица tasks). */
+@Entity
+@Table(name = "tasks")
 public class Task {
 
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(nullable = false)
     private String title;
+
+    @Column(length = 1000)
     private String description;
+
+    @Enumerated(EnumType.STRING) // обязательно STRING, не ORDINAL: порядок констант enum может измениться
     private Priority priority;
+
+    @Enumerated(EnumType.STRING)
     private Status status;
 
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+
+    /** Обязательный конструктор без параметров: Hibernate создаёт объекты через него при чтении из БД. */
     public Task() {
     }
 
@@ -17,6 +45,16 @@ public class Task {
         this.description = description;
         this.priority = priority;
         this.status = Status.NEW;
+    }
+
+    @PrePersist
+    void onCreate() {
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
+        if (status == null) {
+            status = Status.NEW;
+        }
     }
 
     public Long getId() {
@@ -57,6 +95,14 @@ public class Task {
 
     public void setStatus(Status status) {
         this.status = status;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
     }
 
     @Override

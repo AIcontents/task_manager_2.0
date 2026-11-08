@@ -59,3 +59,22 @@ curl -i -X POST localhost:8080/tasks -H 'Content-Type: application/json' \
 curl -i localhost:8080/tasks/999                                # 404 + JSON {"status":404,"error":"Task not found",...}
 curl -i -X POST localhost:8080/tasks -H 'Content-Type: application/json' -d '{"title":""}'   # 400
 ```
+
+## Часть 3. Spring Data JPA
+
+`InMemoryTaskRepository` заменён на `TaskRepository extends JpaRepository<Task, Long>` (H2, `create-drop`).
+Контроллер для CRUD-методов не менялся - изменился только `GET /tasks` (пагинация, шаг 4.1 ТЗ) и появились
+`/tasks/search` и `/tasks/today`.
+
+* `Task` - `@Entity` (`@Enumerated(EnumType.STRING)`, конструктор без параметров, `createdAt`).
+* Derived queries: `findByStatus`, `findByPriority`, `findByStatusAndPriority`, `findByTitleContainingIgnoreCase`, `countByStatus`.
+* JPQL `@Query`: `countGroupedByStatus` (статистика), `searchByKeyword`, `findCreatedBetween` (созданные сегодня).
+* Пагинация: `GET /tasks?page=0&size=3&sort=id` (или `sort=title,desc`), ответ - `content`, `totalElements`, `totalPages`...
+* SQL видно в логе (`show-sql`), H2-консоль: <http://localhost:8080/h2-console> (JDBC URL `jdbc:h2:mem:taskdb`, user `sa`, пароль пустой).
+
+```bash
+curl 'localhost:8080/tasks?page=0&size=3&sort=id'
+curl 'localhost:8080/tasks?status=NEW&priority=HIGH'
+curl 'localhost:8080/tasks/search?keyword=купить'
+curl  localhost:8080/tasks/stats
+```

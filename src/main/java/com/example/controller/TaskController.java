@@ -1,5 +1,6 @@
 package com.example.controller;
 
+import com.example.dto.PageResponse;
 import com.example.model.Task;
 import com.example.service.TaskService;
 import org.springframework.http.ResponseEntity;
@@ -33,14 +34,32 @@ public class TaskController {
         this.taskService = taskService; // constructor injection
     }
 
-    /** GET /tasks, GET /tasks?status=DONE, GET /tasks?priority=HIGH, GET /tasks?status=NEW&priority=LOW */
+    /**
+     * GET /tasks?page=0&size=10&sort=id - постранично; необязательные фильтры status и priority:
+     * ?status=DONE, ?priority=HIGH, ?status=NEW&priority=LOW. Ответ: content, totalElements, totalPages ...
+     */
     @GetMapping
-    public List<Task> getAll(@RequestParam(required = false) String status,
-                             @RequestParam(required = false) String priority) {
-        return taskService.getAllTasks(status, priority);
+    public PageResponse<Task> getAll(@RequestParam(required = false) String status,
+                                     @RequestParam(required = false) String priority,
+                                     @RequestParam(defaultValue = "0") int page,
+                                     @RequestParam(defaultValue = "10") int size,
+                                     @RequestParam(defaultValue = "id") String sort) {
+        return PageResponse.from(taskService.getAllTasks(status, priority, page, size, sort));
     }
 
-    /** Литеральный маршрут /tasks/stats имеет приоритет над шаблоном /tasks/{id}. */
+    /** GET /tasks/search?keyword=купить - поиск по title и description (JPQL). */
+    @GetMapping("/search")
+    public List<Task> search(@RequestParam String keyword) {
+        return taskService.searchByKeyword(keyword);
+    }
+
+    /** GET /tasks/today - задачи, созданные сегодня (JPQL по createdAt). */
+    @GetMapping("/today")
+    public List<Task> createdToday() {
+        return taskService.getTasksCreatedToday();
+    }
+
+    /** Литеральные маршруты (/stats, /search, /today) имеют приоритет над шаблоном /tasks/{id}. */
     @GetMapping("/stats")
     public Map<String, Long> getStats() {
         return taskService.countByStatus();

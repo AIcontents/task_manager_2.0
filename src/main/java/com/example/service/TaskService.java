@@ -3,6 +3,7 @@ package com.example.service;
 import com.example.model.Priority;
 import com.example.model.Status;
 import com.example.model.Task;
+import org.springframework.data.domain.Page;
 
 import java.util.List;
 import java.util.Map;
@@ -15,10 +16,11 @@ public interface TaskService {
     List<Task> getAllTasks();
 
     /**
-     * Фильтрация: оба параметра необязательные (null или пустая строка - фильтр не применяется).
-     * Значения регистронезависимы; неизвестное значение приводит к IllegalArgumentException (HTTP 400).
+     * Постраничный список с необязательными фильтрами (null или пустая строка - фильтр не применяется).
+     * Значения status и priority регистронезависимы; sort - поле или "поле,desc".
+     * Неверные значения приводят к IllegalArgumentException (HTTP 400).
      */
-    List<Task> getAllTasks(String status, String priority);
+    Page<Task> getAllTasks(String status, String priority, int page, int size, String sort);
 
     Task getTask(Long id);
 
@@ -34,6 +36,12 @@ public interface TaskService {
 
     /** Количество задач по статусам: {"NEW": 3, "IN_PROGRESS": 1, "DONE": 2}. */
     Map<String, Long> countByStatus();
+
+    /** Поиск по ключевому слову в title или description. */
+    List<Task> searchByKeyword(String keyword);
+
+    /** Задачи, созданные сегодня. */
+    List<Task> getTasksCreatedToday();
 
     List<Task> getTasksByStatus(Status status);
 

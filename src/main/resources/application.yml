@@ -2,8 +2,25 @@ spring:
   application:
     name: task-manager
   profiles:
-    # Профиль репозитория: dev - InMemoryTaskRepository, prod - PriorityTaskRepository
     active: dev
+  datasource:
+    url: jdbc:h2:mem:taskdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      # create-drop: таблицы создаются при старте и удаляются при остановке (для учёбы).
+      # В реальных проектах схему ведут миграциями (Flyway/Liquibase) - см. Часть 6.
+      ddl-auto: create-drop
+    show-sql: true          # обязательно для отладки: видно SQL, который генерирует Spring Data
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+  h2:
+    console:
+      enabled: true         # http://localhost:8080/h2-console  (JDBC URL: jdbc:h2:mem:taskdb, user: sa)
 
 app:
   name: Task Manager
@@ -11,5 +28,4 @@ app:
   default-priority: MEDIUM
   runner:
     # Консольный сценарий из Части 1. Включить: --app.runner.enabled=true
-    # (для шага 3 с лимитом добавьте --app.max-tasks=3)
     enabled: false

@@ -10,8 +10,13 @@ import com.example.repository.TaskRepository;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -21,6 +26,10 @@ import java.util.stream.Collectors;
 
 @Service
 public class TaskServiceImpl implements TaskService {
+
+    private static final int MAX_PAGE_SIZE = 100;
+    private static final List<String> SORTABLE_FIELDS =
+            List.of("id", "title", "description", "priority", "status", "createdAt");
 
     private final TaskRepository taskRepository;
     private final AppProperties appProperties;
@@ -62,13 +71,22 @@ public class TaskServiceImpl implements TaskService {
     }
 
     @Override
-    public List<Task> getAllTasks(String status, String priority) {
+    public Page<Task> getAllTasks(String status, String priority, int page, int size, String sort) {
         Status statusFilter = parseEnum(Status.class, status, "status");
         Priority priorityFilter = parseEnum(Priority.class, priority, "priority");
-        return taskRepository.findAll().stream()
-                .filter(task -> statusFilter == null || task.getStatus() == statusFilter)
-                .filter(task -> priorityFilter == null || task.getPriority() == priorityFilter)
-                .toList();
+        Pageable pageable = buildPageable(page, size, sort);
+
+        // Derived queries: Spring Data сам строит SQL по имени метода
+        if (statusFilter != null && priorityFilter != null) {
+            return taskRepository.findByStatusAndPriority(statusFilter, priorityFilter, pageable);
+        }
+        if (statusFilter != null) {
+            return taskRepository.findByStatus(statusFilter, pageable);
+        }
+        if (priorityFilter != null) {
+            return taskRepository.findByPriority(priorityFilter, pageable);
+        }
+        return taskRepository.findAll(pageable);
     }
 
     @Override
@@ -91,7 +109,9 @@ public class TaskServiceImpl implements TaskService {
 
     @Override
     public Task updateStatus(Long id, Status status) {
-        return taskRepository.updateStatus(id, status).orElseThrow(() -> new TaskNotFoundException(id));
+        Task task = getTask(id);
+        task.setStatus(status);
+        return taskRepository.save(task);
     }
 
     @Override
@@ -106,10 +126,10 @@ public class TaskServiceImpl implements TaskService {
 
     @Override
     public void deleteTask(Long id) {
-        if (taskRepository.findById(id).isEmpty()) {
+        if (!taskRepository.existsById(id)) {
             throw new TaskNotFoundException(id);
         }
-        taskRepository.delete(id);
+        taskRepository.deleteById(id);
     }
 
     @Override
@@ -119,24 +139,35 @@ public class TaskServiceImpl implements TaskService {
         for (Status status : Status.values()) {
             result.put(status.name(), 0L);
         }
-        taskRepository.findAll().stream()
-                .collect(Collectors.groupingBy(task -> task.getStatus().name(), Collectors.counting()))
-                .forEach(result::put);
+        // JPQL: SELECT t.status, COUNT(t) FROM Task t GROUP BY t.status
+        for (Object[] row : taskRepository.countGroupedByStatus()) {
+            result.put(String.valueOf(row[0]), ((Number) row[1]).longValue());
+        }
         return result;
     }
 
     @Override
+    public List<Task> searchByKeyword(String keyword) {
+        if (keyword == null || keyword.isBlank()) {
+            throw new IllegalArgumentException("Параметр keyword не может быть пустым");
+        }
+        return taskRepository.searchByKeyword(keyword.trim());
+    }
+
+    @Override
+    public List<Task> getTasksCreatedToday() {
+        LocalDate today = LocalDate.now();
+        return taskRepository.findCreatedBetween(today.atStartOfDay(), today.plusDays(1).atStartOfDay());
+    }
+
+    @Override
     public List<Task> getTasksByStatus(Status status) {
-        return taskRepository.findAll().stream()
-                .filter(task -> task.getStatus() == status)
-                .toList();
+        return taskRepository.findByStatus(status);
     }
 
     @Override
     public List<Task> getTasksByPriority(Priority priority) {
-        return taskRepository.findAll().stream()
-                .filter(task -> task.getPriority() == priority)
-                .toList();
+        return taskRepository.findByPriority(priority);
     }
 
     @Override
@@ -148,6 +179,31 @@ public class TaskServiceImpl implements TaskService {
         if (title == null || title.isBlank()) {
             throw new IllegalArgumentException("Название задачи не может быть пустым");
         }
+    }
+
+    private static Pageable buildPageable(int page, int size, String sort) {
+        if (page < 0) {
+            throw new IllegalArgumentException("Параметр page не может быть отрицательным");
+        }
+        if (size < 1 || size > MAX_PAGE_SIZE) {
+            throw new IllegalArgumentException("Параметр size должен быть от 1 до " + MAX_PAGE_SIZE);
+        }
+        String[] parts = (sort == null || sort.isBlank() ? "id" : sort).split(",");
+        String property = parts[0].trim();
+        if (!SORTABLE_FIELDS.contains(property)) {
+            throw new IllegalArgumentException("Сортировка по полю '" + property
+                    + "' не поддерживается. Допустимые поля: " + String.join(", ", SORTABLE_FIELDS));
+        }
+        Sort.Direction direction = Sort.Direction.ASC;
+        if (parts.length > 1) {
+            String requested = parts[1].trim().toLowerCase(Locale.ROOT);
+            if (requested.equals("desc")) {
+                direction = Sort.Direction.DESC;
+            } else if (!requested.equals("asc")) {
+                throw new IllegalArgumentException("Направление сортировки должно быть asc или desc");
+            }
+        }
+        return PageRequest.of(page, size, Sort.by(direction, property));
     }
 
     /** Строка -> enum без учёта регистра; null и пустая строка дают null (фильтр не задан). */

@@ -114,13 +114,14 @@ public class AppRunner implements CommandLineRunner {
     }
 
     private void step7Profile() {
-        title("Шаг 7. Профиль (@Profile(\"dev\") / @Profile(\"prod\"))");
+        title("Шаг 7. Профили (@Profile)");
         System.out.println("  Активные профили: "
                 + Arrays.toString(applicationContext.getEnvironment().getActiveProfiles()));
-        System.out.println("  Порядок задач из репозитория (в prod: HIGH -> MEDIUM -> LOW):");
+        System.out.println("  Задачи в хранилище:");
         taskService.getAllTasks().forEach(task -> System.out.println("    " + task));
-        System.out.println("  Чтобы переключить профиль: spring.profiles.active=prod в application.yml "
-                + "или --spring.profiles.active=prod");
+        System.out.println("  Примечание: в Части 1 профиль выбирал репозиторий (dev - InMemoryTaskRepository, "
+                + "prod - PriorityTaskRepository: HIGH -> MEDIUM -> LOW). С Части 3 хранилище - Spring Data JPA; "
+                + "реализации Части 1 см. тег part-1-spring-core.");
     }
 
     private void step8Finish() {
