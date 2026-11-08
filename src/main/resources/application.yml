@@ -1,0 +1,12 @@
+spring:
+  application:
+    name: task-manager
+  profiles:
+    # Шаг 7 сценария: переключите на prod и запустите снова
+    # (или: ./mvnw spring-boot:run -Dspring-boot.run.profiles=prod)
+    active: dev
+
+app:
+  name: Task Manager
+  max-tasks: 3
+  default-priority: MEDIUM
