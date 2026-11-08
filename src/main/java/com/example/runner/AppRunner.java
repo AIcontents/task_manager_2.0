@@ -8,16 +8,21 @@ import com.example.repository.TaskRepository;
 import com.example.service.TaskService;
 import com.example.service.TaskStatsService;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 /**
- * Весь сценарий запуска (шаги 1-8 из ТЗ). Выполняется при каждом старте приложения.
+ * Весь сценарий запуска Части 1 (шаги 1-8 из ТЗ).
+ * После добавления веб-слоя сценарий выключен по умолчанию (в ТЗ Части 2: «CommandLineRunner можно
+ * закомментировать - при наличии веб-слоя он мешает»). Включается свойством app.runner.enabled=true.
  */
 @Component
+@ConditionalOnProperty(prefix = "app.runner", name = "enabled", havingValue = "true")
 public class AppRunner implements CommandLineRunner {
 
     private final TaskService taskService;
@@ -103,7 +108,7 @@ public class AppRunner implements CommandLineRunner {
         System.out.println("  Всего бинов в контексте: " + applicationContext.getBeanDefinitionCount());
         System.out.println("  Бины, в имени которых есть 'task':");
         Arrays.stream(applicationContext.getBeanDefinitionNames())
-                .filter(name -> name.toLowerCase().contains("task"))
+                .filter(name -> name.toLowerCase(Locale.ROOT).contains("task"))
                 .sorted()
                 .forEach(name -> System.out.println("    " + name));
     }

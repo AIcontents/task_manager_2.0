@@ -10,6 +10,9 @@
 Концепции: IoC/DI, `@Component`, `@Configuration`/`@Bean`, `@Qualifier`, `@Primary`, `@Profile`,
 `@Scope("prototype")`, `ObjectProvider`, `@Value`, `@PostConstruct`/`@PreDestroy`, `ApplicationContext`.
 
+> После Части 2 консольный сценарий выключен по умолчанию. Включить:
+> `./mvnw spring-boot:run -Dspring-boot.run.arguments="--app.runner.enabled=true --app.max-tasks=3"`
+
 ### Запуск
 
 ```bash
@@ -34,3 +37,25 @@
 | `config/AppConfig` | `@Configuration` + `@Bean` с `@Qualifier` |
 | `config/AppProperties` | `@Value` из `application.yml` |
 | `runner/AppRunner` | весь сценарий (шаги 1-8) |
+
+## Часть 2. Spring Web MVC / REST
+
+`TaskController` (`@RestController`, `/tasks`) поверх существующего сервиса; ошибки в JSON -
+`GlobalExceptionHandler` (`@ControllerAdvice`).
+
+| Метод | URI | Ответ |
+|---|---|---|
+| GET | `/tasks` | 200, список; фильтры `?status=DONE`, `?priority=HIGH`, `?status=NEW&priority=LOW` |
+| GET | `/tasks/{id}` | 200 или 404 |
+| POST | `/tasks` | 201 + `Location` |
+| PUT | `/tasks/{id}` | 200 или 404 |
+| PATCH | `/tasks/{id}/status` (`{"status":"DONE"}`) | 200 или 404 |
+| DELETE | `/tasks/{id}` | 204 без тела |
+| GET | `/tasks/stats` | 200, `{"NEW":3,"IN_PROGRESS":1,"DONE":2}` |
+
+```bash
+curl -i -X POST localhost:8080/tasks -H 'Content-Type: application/json' \
+     -d '{"title":"Купить молоко","priority":"HIGH"}'          # 201 Created
+curl -i localhost:8080/tasks/999                                # 404 + JSON {"status":404,"error":"Task not found",...}
+curl -i -X POST localhost:8080/tasks -H 'Content-Type: application/json' -d '{"title":""}'   # 400
+```

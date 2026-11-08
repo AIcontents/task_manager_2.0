@@ -2,11 +2,14 @@ spring:
   application:
     name: task-manager
   profiles:
-    # Шаг 7 сценария: переключите на prod и запустите снова
-    # (или: ./mvnw spring-boot:run -Dspring-boot.run.profiles=prod)
+    # Профиль репозитория: dev - InMemoryTaskRepository, prod - PriorityTaskRepository
     active: dev
 
 app:
   name: Task Manager
-  max-tasks: 3
+  max-tasks: 100
   default-priority: MEDIUM
+  runner:
+    # Консольный сценарий из Части 1. Включить: --app.runner.enabled=true
+    # (для шага 3 с лимитом добавьте --app.max-tasks=3)
+    enabled: false

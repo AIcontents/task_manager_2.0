@@ -5,6 +5,8 @@ import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.util.Locale;
+
 /**
  * Настройки приложения из application.yml (app.name, app.max-tasks, app.default-priority).
  * Значения читаются через @Value, зависимости - только через конструктор.
@@ -22,7 +24,7 @@ public class AppProperties {
         this.name = name;
         this.maxTasks = maxTasks;
         // Неверное значение (например, URGENT) приведёт к ошибке на старте - fail fast
-        this.defaultPriority = Priority.valueOf(defaultPriority.trim().toUpperCase());
+        this.defaultPriority = Priority.valueOf(defaultPriority.trim().toUpperCase(Locale.ROOT));
     }
 
     @PostConstruct
