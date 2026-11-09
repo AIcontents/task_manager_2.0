@@ -1,6 +1,8 @@
 package com.example.service;
 
 import com.example.config.AppProperties;
+import com.example.dto.TaskRequest;
+import com.example.dto.TaskResponse;
 import com.example.exception.TaskLimitExceededException;
 import com.example.exception.TaskNotFoundException;
 import com.example.model.Priority;
@@ -22,6 +24,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -56,76 +59,78 @@ public class TaskServiceImpl implements TaskService {
     }
 
     @Override
-    public Task createTask(String title, String description, Priority priority) {
-        requireTitle(title);
+    public TaskResponse create(TaskRequest request) {
+        requireTitle(request.getTitle());
         if (taskRepository.count() >= appProperties.getMaxTasks()) {
             throw new TaskLimitExceededException(appProperties.getMaxTasks());
         }
-        Priority effectivePriority = priority != null ? priority : appProperties.getDefaultPriority();
-        return taskRepository.save(new Task(title.trim(), description, effectivePriority));
+        Task saved = taskRepository.save(toEntity(request));
+        return TaskResponse.from(saved);
     }
 
     @Override
-    public List<Task> getAllTasks() {
-        return taskRepository.findAll();
+    public List<TaskResponse> getAll() {
+        return taskRepository.findAll().stream()
+                .map(TaskResponse::from)
+                .toList();
     }
 
     @Override
-    public Page<Task> getAllTasks(String status, String priority, int page, int size, String sort) {
+    public Page<TaskResponse> getAll(String status, String priority, int page, int size, String sort) {
         Status statusFilter = parseEnum(Status.class, status, "status");
         Priority priorityFilter = parseEnum(Priority.class, priority, "priority");
         Pageable pageable = buildPageable(page, size, sort);
 
         // Derived queries: Spring Data сам строит SQL по имени метода
+        Page<Task> result;
         if (statusFilter != null && priorityFilter != null) {
-            return taskRepository.findByStatusAndPriority(statusFilter, priorityFilter, pageable);
+            result = taskRepository.findByStatusAndPriority(statusFilter, priorityFilter, pageable);
+        } else if (statusFilter != null) {
+            result = taskRepository.findByStatus(statusFilter, pageable);
+        } else if (priorityFilter != null) {
+            result = taskRepository.findByPriority(priorityFilter, pageable);
+        } else {
+            result = taskRepository.findAll(pageable);
         }
-        if (statusFilter != null) {
-            return taskRepository.findByStatus(statusFilter, pageable);
-        }
-        if (priorityFilter != null) {
-            return taskRepository.findByPriority(priorityFilter, pageable);
-        }
-        return taskRepository.findAll(pageable);
+        return result.map(TaskResponse::from);
     }
 
     @Override
-    public Task getTask(Long id) {
-        return taskRepository.findById(id).orElseThrow(() -> new TaskNotFoundException(id));
+    public Optional<TaskResponse> findById(Long id) {
+        return taskRepository.findById(id).map(TaskResponse::from);
     }
 
     @Override
-    public Task updateTask(Long id, String title, String description, Priority priority, Status status) {
-        Task task = getTask(id);
-        requireTitle(title);
-        task.setTitle(title.trim());
-        task.setDescription(description);
-        task.setPriority(priority != null ? priority : appProperties.getDefaultPriority());
-        if (status != null) {
+    public TaskResponse getOrThrow(Long id) {
+        return findById(id).orElseThrow(() -> new TaskNotFoundException(id));
+    }
+
+    @Override
+    public Optional<TaskResponse> update(Long id, TaskRequest request) {
+        return taskRepository.findById(id).map(task -> {
+            requireTitle(request.getTitle());
+            task.setTitle(request.getTitle().trim());
+            task.setDescription(request.getDescription());
+            task.setPriority(request.getPriority() != null
+                    ? request.getPriority()
+                    : appProperties.getDefaultPriority());
+            if (request.getStatus() != null) {
+                task.setStatus(request.getStatus());
+            }
+            return TaskResponse.from(taskRepository.save(task));
+        });
+    }
+
+    @Override
+    public Optional<TaskResponse> updateStatus(Long id, Status status) {
+        return taskRepository.findById(id).map(task -> {
             task.setStatus(status);
-        }
-        return taskRepository.save(task);
+            return TaskResponse.from(taskRepository.save(task));
+        });
     }
 
     @Override
-    public Task updateStatus(Long id, Status status) {
-        Task task = getTask(id);
-        task.setStatus(status);
-        return taskRepository.save(task);
-    }
-
-    @Override
-    public Task updateStatus(Long id, String status) {
-        Status parsed = parseEnum(Status.class, status, "status");
-        if (parsed == null) {
-            throw new IllegalArgumentException("Поле status обязательно. Допустимые значения: "
-                    + allowedValues(Status.class));
-        }
-        return updateStatus(id, parsed);
-    }
-
-    @Override
-    public void deleteTask(Long id) {
+    public void delete(Long id) {
         if (!taskRepository.existsById(id)) {
             throw new TaskNotFoundException(id);
         }
@@ -147,32 +152,33 @@ public class TaskServiceImpl implements TaskService {
     }
 
     @Override
-    public List<Task> searchByKeyword(String keyword) {
+    public List<TaskResponse> search(String keyword) {
         if (keyword == null || keyword.isBlank()) {
             throw new IllegalArgumentException("Параметр keyword не может быть пустым");
         }
-        return taskRepository.searchByKeyword(keyword.trim());
+        return taskRepository.searchByKeyword(keyword.trim()).stream()
+                .map(TaskResponse::from)
+                .toList();
     }
 
     @Override
-    public List<Task> getTasksCreatedToday() {
+    public List<TaskResponse> getCreatedToday() {
         LocalDate today = LocalDate.now();
-        return taskRepository.findCreatedBetween(today.atStartOfDay(), today.plusDays(1).atStartOfDay());
-    }
-
-    @Override
-    public List<Task> getTasksByStatus(Status status) {
-        return taskRepository.findByStatus(status);
-    }
-
-    @Override
-    public List<Task> getTasksByPriority(Priority priority) {
-        return taskRepository.findByPriority(priority);
+        return taskRepository.findCreatedBetween(today.atStartOfDay(), today.plusDays(1).atStartOfDay()).stream()
+                .map(TaskResponse::from)
+                .toList();
     }
 
     @Override
     public TaskStatsService getStats() {
         return statsProvider.getObject();
+    }
+
+    private Task toEntity(TaskRequest request) {
+        Priority priority = request.getPriority() != null
+                ? request.getPriority()
+                : appProperties.getDefaultPriority();
+        return new Task(request.getTitle().trim(), request.getDescription(), priority);
     }
 
     private static void requireTitle(String title) {

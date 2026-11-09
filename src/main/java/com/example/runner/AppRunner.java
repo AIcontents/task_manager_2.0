@@ -1,9 +1,10 @@
 package com.example.runner;
 
 import com.example.config.AppProperties;
+import com.example.dto.TaskRequest;
+import com.example.dto.TaskResponse;
 import com.example.model.Priority;
 import com.example.model.Status;
-import com.example.model.Task;
 import com.example.repository.TaskRepository;
 import com.example.service.TaskService;
 import com.example.service.TaskStatsService;
@@ -40,7 +41,7 @@ public class AppRunner implements CommandLineRunner {
     @Override
     public void run(String... args) {
         step1Greeting();
-        List<Task> created = step2AddTasks();
+        List<TaskResponse> created = step2AddTasks();
         step3EdgeCases();
         step4ChangeStatuses(created);
         step5PrototypeScope();
@@ -56,25 +57,25 @@ public class AppRunner implements CommandLineRunner {
                 + appProperties.getDefaultPriority());
     }
 
-    private List<Task> step2AddTasks() {
+    private List<TaskResponse> step2AddTasks() {
         title("Шаг 2. Добавление задач (@Component / constructor DI / TaskServiceImpl)");
-        Task low = taskService.createTask("Полить цветы", "Раз в неделю", Priority.LOW);
-        Task medium = taskService.createTask("Написать отчёт", "По лабораторной работе", Priority.MEDIUM);
-        Task high = taskService.createTask("Сдать домашнее задание", "До пятницы", Priority.HIGH);
-        taskService.getAllTasks().forEach(task -> System.out.println("  " + task));
+        TaskResponse low = taskService.create(request("Полить цветы", "Раз в неделю", Priority.LOW));
+        TaskResponse medium = taskService.create(request("Написать отчёт", "По лабораторной работе", Priority.MEDIUM));
+        TaskResponse high = taskService.create(request("Сдать домашнее задание", "До пятницы", Priority.HIGH));
+        taskService.getAll().forEach(task -> System.out.println("  " + task));
         return List.of(low, medium, high);
     }
 
     private void step3EdgeCases() {
         title("Шаг 3. Граничные случаи (@Value max-tasks / валидация в сервисе)");
         try {
-            taskService.createTask("   ", "Пустое название", Priority.LOW);
+            taskService.create(request("   ", "Пустое название", Priority.LOW));
             System.out.println("  Ожидалось исключение для пустого title, но его не было");
         } catch (IllegalArgumentException e) {
             System.out.println("  Пустой title -> " + e.getClass().getSimpleName() + ": " + e.getMessage());
         }
         try {
-            taskService.createTask("Лишняя задача", "Сверх лимита", Priority.LOW);
+            taskService.create(request("Лишняя задача", "Сверх лимита", Priority.LOW));
             System.out.println("  Лимит не достигнут (app.max-tasks=" + appProperties.getMaxTasks() + ")");
         } catch (RuntimeException e) {
             System.out.println("  Сверх лимита -> " + e.getClass().getSimpleName() + ": " + e.getMessage());
@@ -82,14 +83,14 @@ public class AppRunner implements CommandLineRunner {
         System.out.println("  Приложение продолжает работу");
     }
 
-    private void step4ChangeStatuses(List<Task> created) {
+    private void step4ChangeStatuses(List<TaskResponse> created) {
         title("Шаг 4. Изменение статусов (TaskRepository.findAll() + фильтрация)");
         taskService.updateStatus(created.get(0).getId(), Status.IN_PROGRESS);
         taskService.updateStatus(created.get(1).getId(), Status.DONE);
         System.out.println("  Только DONE:");
-        taskService.getTasksByStatus(Status.DONE).forEach(task -> System.out.println("    " + task));
+        taskService.getAll("DONE", null, 0, 100, "id").forEach(task -> System.out.println("    " + task));
         System.out.println("  Только HIGH:");
-        taskService.getTasksByPriority(Priority.HIGH).forEach(task -> System.out.println("    " + task));
+        taskService.getAll(null, "HIGH", 0, 100, "id").forEach(task -> System.out.println("    " + task));
     }
 
     private void step5PrototypeScope() {
@@ -118,7 +119,7 @@ public class AppRunner implements CommandLineRunner {
         System.out.println("  Активные профили: "
                 + Arrays.toString(applicationContext.getEnvironment().getActiveProfiles()));
         System.out.println("  Задачи в хранилище:");
-        taskService.getAllTasks().forEach(task -> System.out.println("    " + task));
+        taskService.getAll().forEach(task -> System.out.println("    " + task));
         System.out.println("  Примечание: в Части 1 профиль выбирал репозиторий (dev - InMemoryTaskRepository, "
                 + "prod - PriorityTaskRepository: HIGH -> MEDIUM -> LOW). С Части 3 хранилище - Spring Data JPA; "
                 + "реализации Части 1 см. тег part-1-spring-core.");
@@ -127,6 +128,10 @@ public class AppRunner implements CommandLineRunner {
     private void step8Finish() {
         title("Шаг 8. Завершение (@PreDestroy / жизненный цикл бина)");
         System.out.println("  Приложение останавливается: контекст закрывается, сработает @PreDestroy");
+    }
+
+    private static TaskRequest request(String title, String description, Priority priority) {
+        return new TaskRequest(title, description, priority);
     }
 
     private void title(String text) {

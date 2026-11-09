@@ -78,3 +78,19 @@ curl 'localhost:8080/tasks?status=NEW&priority=HIGH'
 curl 'localhost:8080/tasks/search?keyword=купить'
 curl  localhost:8080/tasks/stats
 ```
+
+## Между частями 3 и 4. DTO + валидация
+
+База Части 4 в ТЗ - «DTO + валидация сданы» (отдельного задания в документе нет, поэтому этот шаг оформлен
+отдельным коммитом, тег `part-3b-dto-validation`). `@Entity` больше не отдаётся через API напрямую.
+
+* `TaskRequest` (`@NotBlank`, `@Size`), `StatusUpdateRequest` (`@NotNull`), `TaskResponse` (priority/status - строки).
+* `@Valid` в контроллере; `GlobalExceptionHandler` отдаёт 400 с `fieldErrors`.
+* Сервис работает с DTO: `create`, `getAll`, `findById`, `getOrThrow`, `update`, `updateStatus`, `delete`.
+* Работают оба префикса: `/tasks` и `/api/tasks` (в ТЗ разных частей используются оба).
+* Значения enum в JSON регистронезависимы (`"priority":"high"`).
+
+```bash
+curl -i -X POST localhost:8080/api/tasks -H 'Content-Type: application/json' -d '{"title":"  "}'
+# 400 {"status":400,"error":"Validation failed","message":"Название задачи не может быть пустым","fieldErrors":{"title":"..."}}
+```

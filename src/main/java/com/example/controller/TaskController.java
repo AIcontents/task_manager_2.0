@@ -1,8 +1,12 @@
 package com.example.controller;
 
 import com.example.dto.PageResponse;
-import com.example.model.Task;
+import com.example.dto.StatusUpdateRequest;
+import com.example.dto.TaskRequest;
+import com.example.dto.TaskResponse;
+import com.example.exception.TaskNotFoundException;
 import com.example.service.TaskService;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,9 +27,11 @@ import java.util.Map;
 /**
  * REST API задач. В контроллере нет бизнес-логики: только разбор HTTP-запроса,
  * вызов сервиса и выбор статуса ответа. Ошибки превращает в JSON GlobalExceptionHandler.
+ * <p>
+ * Работают оба префикса: /tasks (ТЗ частей 2, 3, 9, 11) и /api/tasks (ТЗ частей 5, 6, 8).
  */
 @RestController
-@RequestMapping("/tasks")
+@RequestMapping({"/api/tasks", "/tasks"})
 public class TaskController {
 
     private final TaskService taskService;
@@ -39,24 +45,24 @@ public class TaskController {
      * ?status=DONE, ?priority=HIGH, ?status=NEW&priority=LOW. Ответ: content, totalElements, totalPages ...
      */
     @GetMapping
-    public PageResponse<Task> getAll(@RequestParam(required = false) String status,
-                                     @RequestParam(required = false) String priority,
-                                     @RequestParam(defaultValue = "0") int page,
-                                     @RequestParam(defaultValue = "10") int size,
-                                     @RequestParam(defaultValue = "id") String sort) {
-        return PageResponse.from(taskService.getAllTasks(status, priority, page, size, sort));
+    public PageResponse<TaskResponse> getAll(@RequestParam(required = false) String status,
+                                             @RequestParam(required = false) String priority,
+                                             @RequestParam(defaultValue = "0") int page,
+                                             @RequestParam(defaultValue = "10") int size,
+                                             @RequestParam(defaultValue = "id") String sort) {
+        return PageResponse.from(taskService.getAll(status, priority, page, size, sort));
     }
 
     /** GET /tasks/search?keyword=купить - поиск по title и description (JPQL). */
     @GetMapping("/search")
-    public List<Task> search(@RequestParam String keyword) {
-        return taskService.searchByKeyword(keyword);
+    public List<TaskResponse> search(@RequestParam String keyword) {
+        return taskService.search(keyword);
     }
 
     /** GET /tasks/today - задачи, созданные сегодня (JPQL по createdAt). */
     @GetMapping("/today")
-    public List<Task> createdToday() {
-        return taskService.getTasksCreatedToday();
+    public List<TaskResponse> createdToday() {
+        return taskService.getCreatedToday();
     }
 
     /** Литеральные маршруты (/stats, /search, /today) имеют приоритет над шаблоном /tasks/{id}. */
@@ -66,14 +72,14 @@ public class TaskController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Task> getById(@PathVariable Long id) {
+    public ResponseEntity<TaskResponse> getById(@PathVariable Long id) {
         // 404 выбрасывает сервис (TaskNotFoundException), JSON формирует GlobalExceptionHandler
-        return ResponseEntity.ok(taskService.getTask(id));
+        return ResponseEntity.ok(taskService.getOrThrow(id));
     }
 
     @PostMapping
-    public ResponseEntity<Task> create(@RequestBody Task request) {
-        Task created = taskService.createTask(request.getTitle(), request.getDescription(), request.getPriority());
+    public ResponseEntity<TaskResponse> create(@Valid @RequestBody TaskRequest request) {
+        TaskResponse created = taskService.create(request);
         URI location = ServletUriComponentsBuilder.fromCurrentRequest()
                 .path("/{id}")
                 .buildAndExpand(created.getId())
@@ -82,20 +88,24 @@ public class TaskController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Task> update(@PathVariable Long id, @RequestBody Task request) {
-        return ResponseEntity.ok(taskService.updateTask(id, request.getTitle(), request.getDescription(),
-                request.getPriority(), request.getStatus()));
+    public ResponseEntity<TaskResponse> update(@PathVariable Long id, @Valid @RequestBody TaskRequest request) {
+        return taskService.update(id, request)
+                .map(ResponseEntity::ok)
+                .orElseThrow(() -> new TaskNotFoundException(id));
     }
 
     /** Тело запроса: {"status":"DONE"} */
     @PatchMapping("/{id}/status")
-    public ResponseEntity<Task> updateStatus(@PathVariable Long id, @RequestBody Map<String, String> body) {
-        return ResponseEntity.ok(taskService.updateStatus(id, body.get("status")));
+    public ResponseEntity<TaskResponse> updateStatus(@PathVariable Long id,
+                                                     @Valid @RequestBody StatusUpdateRequest request) {
+        return taskService.updateStatus(id, request.getStatus())
+                .map(ResponseEntity::ok)
+                .orElseThrow(() -> new TaskNotFoundException(id));
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
-        taskService.deleteTask(id);
+        taskService.delete(id);
         return ResponseEntity.noContent().build(); // 204, тела нет
     }
 }

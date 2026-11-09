@@ -3,6 +3,10 @@ spring:
     name: task-manager
   profiles:
     active: dev
+  jackson:
+    mapper:
+      # priority/status в JSON принимаются в любом регистре: "high", "High", "HIGH"
+      accept-case-insensitive-enums: true
   datasource:
     url: jdbc:h2:mem:taskdb
     driver-class-name: org.h2.Driver

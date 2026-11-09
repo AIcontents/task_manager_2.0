@@ -1,51 +1,50 @@
 package com.example.service;
 
-import com.example.model.Priority;
+import com.example.dto.TaskRequest;
+import com.example.dto.TaskResponse;
 import com.example.model.Status;
-import com.example.model.Task;
 import org.springframework.data.domain.Page;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /** Бизнес-логика работы с задачами. Контроллеры содержат только вызовы этого интерфейса. */
 public interface TaskService {
 
-    Task createTask(String title, String description, Priority priority);
+    TaskResponse create(TaskRequest request);
 
-    List<Task> getAllTasks();
+    List<TaskResponse> getAll();
 
     /**
      * Постраничный список с необязательными фильтрами (null или пустая строка - фильтр не применяется).
      * Значения status и priority регистронезависимы; sort - поле или "поле,desc".
      * Неверные значения приводят к IllegalArgumentException (HTTP 400).
      */
-    Page<Task> getAllTasks(String status, String priority, int page, int size, String sort);
+    Page<TaskResponse> getAll(String status, String priority, int page, int size, String sort);
 
-    Task getTask(Long id);
+    Optional<TaskResponse> findById(Long id);
 
-    /** Полное обновление (PUT). Статус не меняется, если status == null. */
-    Task updateTask(Long id, String title, String description, Priority priority, Status status);
+    /** Как findById, но бросает TaskNotFoundException (HTTP 404), если задачи нет. */
+    TaskResponse getOrThrow(Long id);
 
-    Task updateStatus(Long id, Status status);
+    /** Полное обновление (PUT). Статус не меняется, если в запросе он не указан. Пустой Optional - задачи нет. */
+    Optional<TaskResponse> update(Long id, TaskRequest request);
 
-    /** Вариант для PATCH /tasks/{id}/status: статус приходит строкой из JSON. */
-    Task updateStatus(Long id, String status);
+    /** Меняет только статус. Пустой Optional - задачи нет. */
+    Optional<TaskResponse> updateStatus(Long id, Status status);
 
-    void deleteTask(Long id);
+    /** Бросает TaskNotFoundException, если задачи с таким id нет. */
+    void delete(Long id);
 
     /** Количество задач по статусам: {"NEW": 3, "IN_PROGRESS": 1, "DONE": 2}. */
     Map<String, Long> countByStatus();
 
     /** Поиск по ключевому слову в title или description. */
-    List<Task> searchByKeyword(String keyword);
+    List<TaskResponse> search(String keyword);
 
     /** Задачи, созданные сегодня. */
-    List<Task> getTasksCreatedToday();
-
-    List<Task> getTasksByStatus(Status status);
-
-    List<Task> getTasksByPriority(Priority priority);
+    List<TaskResponse> getCreatedToday();
 
     /** Каждый вызов возвращает новый экземпляр prototype-бина TaskStatsService. */
     TaskStatsService getStats();
