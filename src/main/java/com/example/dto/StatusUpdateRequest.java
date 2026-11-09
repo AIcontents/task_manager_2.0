@@ -23,4 +23,9 @@ public class StatusUpdateRequest {
     public void setStatus(Status status) {
         this.status = status;
     }
+
+    @Override
+    public String toString() {
+        return "StatusUpdateRequest{status=" + status + '}';
+    }
 }

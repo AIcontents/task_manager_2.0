@@ -94,3 +94,29 @@ curl  localhost:8080/tasks/stats
 curl -i -X POST localhost:8080/api/tasks -H 'Content-Type: application/json' -d '{"title":"  "}'
 # 400 {"status":400,"error":"Validation failed","message":"Название задачи не может быть пустым","fieldErrors":{"title":"..."}}
 ```
+
+## Часть 4. AOP - логирование и тайминг
+
+Весь код аспектов - в пакете `aspect/`. `TaskService`, `TaskController`, `TaskRepository` не содержат ни одной
+строки про логирование или замер времени (главный критерий ТЗ).
+
+| Класс | Что делает |
+|---|---|
+| `aspect/LoggingAspect` | `@Pointcut taskServiceMethods()` + `@Before` (имя метода и аргументы), `@After`, `@Around` (замер времени, `pjp.proceed()`, `throw e`), `@AfterThrowing` (класс, метод, сообщение; исключение не подавляется) |
+| `annotation/Loggable` | `@Retention(RUNTIME)`, `@Target(METHOD)` |
+| `aspect/AnnotationLoggingAspect` | срабатывает только на методах с `@Loggable` (в `TaskServiceImpl`: `create`, `update`, `delete`) |
+
+Пример лога для `POST /tasks`:
+
+```
+→ create called with args: [TaskRequest{title='Купить молоко', priority=HIGH, status=null}]
+[@Loggable] Создание задачи -> TaskService.create(..)
+create completed in 12ms
+[@Loggable] Создание задачи -> OK
+← create finished
+```
+
+Для `GET /tasks/999` сработают `@Before`, `@AfterThrowing` (✖ ... threw TaskNotFoundException), `@After`, а клиент всё равно получит
+404 JSON от `@ControllerAdvice`.
+
+Ограничение прокси: вызов метода своего же класса (`getOrThrow -> findById`) идёт мимо прокси, поэтому аспект его не видит.

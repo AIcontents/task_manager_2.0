@@ -1,5 +1,6 @@
 package com.example.service;
 
+import com.example.annotation.Loggable;
 import com.example.config.AppProperties;
 import com.example.dto.TaskRequest;
 import com.example.dto.TaskResponse;
@@ -58,6 +59,7 @@ public class TaskServiceImpl implements TaskService {
         System.out.println("Завершение работы. Задач в хранилище: " + taskRepository.count());
     }
 
+    @Loggable("Создание задачи")
     @Override
     public TaskResponse create(TaskRequest request) {
         requireTitle(request.getTitle());
@@ -105,6 +107,7 @@ public class TaskServiceImpl implements TaskService {
         return findById(id).orElseThrow(() -> new TaskNotFoundException(id));
     }
 
+    @Loggable("Обновление задачи")
     @Override
     public Optional<TaskResponse> update(Long id, TaskRequest request) {
         return taskRepository.findById(id).map(task -> {
@@ -129,6 +132,7 @@ public class TaskServiceImpl implements TaskService {
         });
     }
 
+    @Loggable("Удаление задачи")
     @Override
     public void delete(Long id) {
         if (!taskRepository.existsById(id)) {
