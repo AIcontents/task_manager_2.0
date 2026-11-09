@@ -9,6 +9,7 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -23,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Каждый тест выполняется в транзакции, которая откатывается в конце, - БД остаётся чистой.
  */
 @DataJpaTest
+@ActiveProfiles("test") // схему создаёт Flyway (db/migration), без демо-данных профиля dev
 class TaskRepositoryTest {
 
     @Autowired

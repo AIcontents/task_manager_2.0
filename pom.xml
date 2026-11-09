@@ -48,6 +48,17 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- Миграции БД: Flyway (используется по умолчанию) и Liquibase (профиль liquibase) -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.liquibase</groupId>
+            <artifactId>liquibase-core</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>

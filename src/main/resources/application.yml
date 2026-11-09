@@ -14,17 +14,24 @@ spring:
     password:
   jpa:
     hibernate:
-      # create-drop: таблицы создаются при старте и удаляются при остановке (для учёбы).
-      # В реальных проектах схему ведут миграциями (Flyway/Liquibase) - см. Часть 6.
-      ddl-auto: create-drop
-    show-sql: true          # обязательно для отладки: видно SQL, который генерирует Spring Data
+      # Схемой управляет Flyway (src/main/resources/db/migration), Hibernate её не создаёт и не меняет.
+      # create-drop годится только для учёбы: в production он стирает данные при каждом перезапуске.
+      ddl-auto: none
+    show-sql: true          # видно SQL, который генерирует Spring Data
     open-in-view: false
     properties:
       hibernate:
         format_sql: true
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  liquibase:
+    # Одновременно мигрировать схему двумя инструментами нельзя: Liquibase включается профилем liquibase.
+    enabled: false
+    change-log: classpath:db/changelog/db.changelog-master.xml
   h2:
     console:
-      enabled: true         # http://localhost:8080/h2-console  (JDBC URL: jdbc:h2:mem:taskdb, user: sa)
+      enabled: true         # http://localhost:8080/h2-console
 
 app:
   name: Task Manager
@@ -35,14 +42,34 @@ app:
     enabled: false
 
 ---
-# Подробные логи транзакций - только для разработки (профиль dev), чтобы не шуметь в docker/prod.
+# Профиль dev (по умолчанию): файловая H2 - данные переживают перезапуск, демо-данные, подробные логи.
 spring:
   config:
     activate:
       on-profile: dev
+  datasource:
+    url: jdbc:h2:file:./data/taskdb
+  flyway:
+    # db/seed - демо-данные (repeatable-миграция), только для dev
+    locations: classpath:db/migration,classpath:db/seed
 logging:
   level:
+    org.flywaydb: DEBUG     # какие миграции и в каком порядке применены
     # "Getting transaction for [...TaskServiceImpl.create]" / "Completing transaction for ..."
     org.springframework.transaction: TRACE
     # "Creating new transaction ...", "Committing JPA transaction", "Rolling back JPA transaction"
     org.springframework.orm.jpa.JpaTransactionManager: DEBUG
+
+---
+# Профиль liquibase: те же миграции через Liquibase (Часть 6, блок 2). Запуск:
+#   ./mvnw spring-boot:run -Dspring-boot.run.profiles=liquibase
+spring:
+  config:
+    activate:
+      on-profile: liquibase
+  flyway:
+    enabled: false
+  liquibase:
+    enabled: true
+  datasource:
+    url: jdbc:h2:mem:liquibase-demo

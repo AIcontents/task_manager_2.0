@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.ActiveProfiles;
 
 import java.io.IOException;
 
@@ -24,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * Поэтому после каждого теста таблицы чистятся вручную.
  */
 @SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:tx-behavior-test")
+@ActiveProfiles("test")
 @Import(TransactionDemoService.class)
 class TransactionBehaviorTest {
 

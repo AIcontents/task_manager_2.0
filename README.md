@@ -140,3 +140,38 @@ create completed in 12ms
 | checked `IOException` без `rollbackFor` | **коммит** - данные остаются |
 | checked `IOException` + `rollbackFor = Exception.class` | откат |
 | `REQUIRES_NEW` (аудит) при откате основной транзакции | запись аудита сохраняется |
+
+## Часть 6. Миграции БД: Flyway и Liquibase
+
+`ddl-auto=create-drop` заменён на `ddl-auto=none` + Flyway. Схема - в SQL-миграциях:
+
+| Файл | Что делает |
+|---|---|
+| `db/migration/V1__create_tasks_table.sql` | таблица `tasks` |
+| `db/migration/V2__add_created_at_to_tasks.sql` | `created_at TIMESTAMP DEFAULT NOW()` (у старых строк заполняется сразу) |
+| `db/migration/V3__create_audit_logs_table.sql` | `audit_logs` (сущность из Части 5) |
+| `db/seed/R__seed_demo_tasks.sql` | демо-данные, **только профиль dev** (repeatable-миграция) |
+
+* Профиль `dev` использует файловую H2 (`./data/taskdb`), поэтому данные **переживают перезапуск** и видно, что V1 повторно не применяется
+  (`flyway_schema_history`). Демо: удалите `./data` - миграции создадут схему и демо-данные заново.
+  Измените уже применённый `V1__...sql` - Flyway откажется стартовать (checksum mismatch); исправление - только новой миграцией `V4`.
+* Демо-данные вынесены из `V1`: схема не должна тащить за собой тестовые строки (в тестах и в docker их нет).
+  Тесты идут с профилем `test` (`application-test.yml`): схема из тех же миграций, но без seed.
+* **Liquibase** - те же изменения в SQL-формате с `--rollback`: `db/changelog/db.changelog-master.xml` + `changes/001..003-*.sql`.
+  Запуск: `./mvnw spring-boot:run -Dspring-boot.run.profiles=liquibase` (Flyway при этом выключен; история - таблица `DATABASECHANGELOG`).
+* `FlywayMigrationTest` проверяет порядок применённых миграций и колонки таблиц.
+
+### Сравнение Flyway и Liquibase
+
+| Критерий | Flyway | Liquibase |
+|---|---|---|
+| Формат миграций | SQL-файлы `V<версия>__<имя>.sql` | XML / YAML / JSON / SQL (`--liquibase formatted sql`) |
+| Таблица истории | `flyway_schema_history` | `DATABASECHANGELOG` (+ `DATABASECHANGELOGLOCK`) |
+| Откат | в Community-версии нет (только платно) | `--rollback` у каждого changeSet |
+| Порог входа | низкий: пишешь обычный SQL | средний: свой формат, changeSet-ы, master-файл |
+| Абстракция от БД | нет, SQL конкретной СУБД | есть (в XML/YAML), в SQL-формате - нет |
+| **Мой выбор** | **Flyway** | |
+
+**Выбор для Task Manager - Flyway:** проект небольшой, схема одна (H2 для разработки, PostgreSQL в Docker), SQL в обоих случаях
+почти одинаковый; обычные SQL-файлы проще читать и ревьюить, а откат в учебном проекте делается новой миграцией вперёд.
+Liquibase стоило бы выбрать, если нужны бесплатный rollback или одна и та же схема на сильно разных СУБД без правки SQL.
