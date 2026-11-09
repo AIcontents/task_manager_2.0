@@ -33,3 +33,16 @@ app:
   runner:
     # Консольный сценарий из Части 1. Включить: --app.runner.enabled=true
     enabled: false
+
+---
+# Подробные логи транзакций - только для разработки (профиль dev), чтобы не шуметь в docker/prod.
+spring:
+  config:
+    activate:
+      on-profile: dev
+logging:
+  level:
+    # "Getting transaction for [...TaskServiceImpl.create]" / "Completing transaction for ..."
+    org.springframework.transaction: TRACE
+    # "Creating new transaction ...", "Committing JPA transaction", "Rolling back JPA transaction"
+    org.springframework.orm.jpa.JpaTransactionManager: DEBUG

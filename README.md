@@ -120,3 +120,23 @@ create completed in 12ms
 404 JSON от `@ControllerAdvice`.
 
 Ограничение прокси: вызов метода своего же класса (`getOrThrow -> findById`) идёт мимо прокси, поэтому аспект его не видит.
+
+## Часть 5. @Transactional
+
+* `TaskServiceImpl` помечен `@Transactional` (read-write по умолчанию); методы чтения (`getAll`, `findById`, `getOrThrow`,
+  `countByStatus`, `search`, `getCreatedToday`) - `@Transactional(readOnly = true)`.
+* Профиль `dev` включает логи транзакций: `Creating new transaction ... / Committing / Rolling back`
+  (`DELETE /api/tasks/999` - в логе `Rolling back JPA transaction`).
+* `AuditLog` (`audit_logs`: id, action, taskId, createdAt), `AuditLogRepository`, `AuditService.logAction()` с
+  `@Transactional(propagation = REQUIRES_NEW)`; вызывается из `create()` (`CREATE`) и `delete()` (`DELETE`).
+  `AuditService` - отдельный бин, поэтому вызов идёт через прокси (с `this.` транзакция бы не открылась).
+* Демонстрации из ТЗ (checked exception без/с `rollbackFor`, аудит переживает откат) вынесены в тесты, а не в
+  production-код: `TransactionDemoService` (`@TestComponent`) + `TransactionBehaviorTest`.
+* `TaskRepositoryTest` - `@DataJpaTest` с настоящей H2.
+
+| Ситуация | Результат |
+|---|---|
+| `RuntimeException` в `@Transactional`-методе | откат (по умолчанию) |
+| checked `IOException` без `rollbackFor` | **коммит** - данные остаются |
+| checked `IOException` + `rollbackFor = Exception.class` | откат |
+| `REQUIRES_NEW` (аудит) при откате основной транзакции | запись аудита сохраняется |

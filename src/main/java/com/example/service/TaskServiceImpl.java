@@ -18,6 +18,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.Arrays;
@@ -29,6 +31,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
+@Transactional // все методы транзакционны (read-write) по умолчанию; для чтения переопределено ниже
 public class TaskServiceImpl implements TaskService {
 
     private static final int MAX_PAGE_SIZE = 100;
@@ -40,13 +43,17 @@ public class TaskServiceImpl implements TaskService {
     // ObjectProvider, а не прямое внедрение: иначе prototype-бин был бы создан один раз
     // при создании singleton-сервиса, и UUID всегда был бы одинаковым.
     private final ObjectProvider<TaskStatsService> statsProvider;
+    // Отдельный бин: вызов через контейнер (прокси) открывает собственную транзакцию REQUIRES_NEW
+    private final AuditService auditService;
 
     public TaskServiceImpl(TaskRepository taskRepository,
                            AppProperties appProperties,
-                           ObjectProvider<TaskStatsService> statsProvider) {
+                           ObjectProvider<TaskStatsService> statsProvider,
+                           AuditService auditService) {
         this.taskRepository = taskRepository;
         this.appProperties = appProperties;
         this.statsProvider = statsProvider;
+        this.auditService = auditService;
     }
 
     @PostConstruct
@@ -67,9 +74,12 @@ public class TaskServiceImpl implements TaskService {
             throw new TaskLimitExceededException(appProperties.getMaxTasks());
         }
         Task saved = taskRepository.save(toEntity(request));
+        // REQUIRES_NEW: запись аудита коммитится независимо от основной транзакции
+        auditService.logAction("CREATE", saved.getId());
         return TaskResponse.from(saved);
     }
 
+    @Transactional(readOnly = true)
     @Override
     public List<TaskResponse> getAll() {
         return taskRepository.findAll().stream()
@@ -77,6 +87,7 @@ public class TaskServiceImpl implements TaskService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
     @Override
     public Page<TaskResponse> getAll(String status, String priority, int page, int size, String sort) {
         Status statusFilter = parseEnum(Status.class, status, "status");
@@ -97,11 +108,13 @@ public class TaskServiceImpl implements TaskService {
         return result.map(TaskResponse::from);
     }
 
+    @Transactional(readOnly = true)
     @Override
     public Optional<TaskResponse> findById(Long id) {
         return taskRepository.findById(id).map(TaskResponse::from);
     }
 
+    @Transactional(readOnly = true)
     @Override
     public TaskResponse getOrThrow(Long id) {
         return findById(id).orElseThrow(() -> new TaskNotFoundException(id));
@@ -139,8 +152,10 @@ public class TaskServiceImpl implements TaskService {
             throw new TaskNotFoundException(id);
         }
         taskRepository.deleteById(id);
+        auditService.logAction("DELETE", id);
     }
 
+    @Transactional(readOnly = true)
     @Override
     public Map<String, Long> countByStatus() {
         // Сначала нули по всем статусам, чтобы в ответе всегда были все ключи
@@ -155,6 +170,7 @@ public class TaskServiceImpl implements TaskService {
         return result;
     }
 
+    @Transactional(readOnly = true)
     @Override
     public List<TaskResponse> search(String keyword) {
         if (keyword == null || keyword.isBlank()) {
@@ -165,6 +181,7 @@ public class TaskServiceImpl implements TaskService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
     @Override
     public List<TaskResponse> getCreatedToday() {
         LocalDate today = LocalDate.now();
@@ -173,6 +190,8 @@ public class TaskServiceImpl implements TaskService {
                 .toList();
     }
 
+    /** К БД не обращается - транзакция не нужна (NOT_SUPPORTED приостанавливает внешнюю, если она есть). */
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     @Override
     public TaskStatsService getStats() {
         return statsProvider.getObject();
