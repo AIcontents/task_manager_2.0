@@ -175,3 +175,23 @@ create completed in 12ms
 **Выбор для Task Manager - Flyway:** проект небольшой, схема одна (H2 для разработки, PostgreSQL в Docker), SQL в обоих случаях
 почти одинаковый; обычные SQL-файлы проще читать и ревьюить, а откат в учебном проекте делается новой миграцией вперёд.
 Liquibase стоило бы выбрать, если нужны бесплатный rollback или одна и та же схема на сильно разных СУБД без правки SQL.
+
+## Часть 7. Юнит-тесты: JUnit 5 + Mockito
+
+`src/test/java/com/example/service/TaskServiceTest.java` - тесты `TaskServiceImpl` **без** Spring-контекста
+(`@ExtendWith(MockitoExtension.class)`, нет `@SpringBootTest`): `@Mock TaskRepository`, `@Mock AuditService`,
+`@Spy AppProperties`, `@InjectMocks TaskServiceImpl` (constructor injection). Каждый тест - Arrange / Act / Assert.
+
+| Метод | Тесты |
+|---|---|
+| `getAll()` | список DTO; пустой список; фильтры `status`+`priority` (derived query); страница и сортировка (`ArgumentCaptor`); неизвестный статус, неверный `size`/`sort` -> `IllegalArgumentException` |
+| `create()` | статус `NEW`; вызов `save`; запись аудита `CREATE`; приоритет по умолчанию; пустой title -> репозиторий не вызывается (`verifyNoInteractions`); лимит -> `TaskLimitExceededException` |
+| `findById()` / `getOrThrow()` | найден; не найден -> `Optional.empty()`; не найден -> `TaskNotFoundException` с id в сообщении |
+| `update()` / `updateStatus()` | обновлённые поля; статус не меняется, если не передан; задачи нет -> пусто и `save` не вызывается; меняется только статус |
+| `delete()` | `deleteById` + аудит `DELETE`; нет задачи -> исключение, `deleteById` не вызывается |
+| остальное | статистика по статусам (с нулями), поиск, «созданные сегодня», prototype `getStats()` |
+
+```bash
+./mvnw test                       # все тесты
+./mvnw test -Dtest=TaskServiceTest
+```
