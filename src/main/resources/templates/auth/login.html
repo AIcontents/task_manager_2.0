@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{layout :: head('Вход')}"></head>
+<body>
+<div class="login-wrapper">
+    <div class="card login-card">
+        <h1>Task Manager</h1>
+
+        <!-- ?error - Spring Security вернул на форму после неверного логина или пароля -->
+        <div class="alert alert-error" th:if="${param.error}">Неверный email или пароль</div>
+        <!-- ?logout - пользователь вышел -->
+        <div class="alert alert-info" th:if="${param.logout}">Вы вышли из системы</div>
+
+        <!-- th:action добавляет скрытое поле _csrf: без него Spring Security отклонит POST /login -->
+        <form th:action="@{/login}" method="post">
+            <div class="field">
+                <label for="username">Email</label>
+                <input type="text" id="username" name="username" autofocus="autofocus" autocomplete="username"/>
+            </div>
+            <div class="field">
+                <label for="password">Пароль</label>
+                <input type="password" id="password" name="password" autocomplete="current-password"/>
+            </div>
+            <button class="btn" type="submit">Войти</button>
+        </form>
+
+        <p class="muted" style="text-align:center; margin-top: 1rem;">
+            Регистрация новых пользователей - через REST API: <code>POST /auth/register</code>
+        </p>
+    </div>
+</div>
+</body>
+</html>

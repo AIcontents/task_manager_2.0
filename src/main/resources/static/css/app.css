@@ -1,0 +1,121 @@
+/* Минимальные стили веб-интерфейса Task Manager */
+:root {
+    --bg: #f4f6fb;
+    --card: #ffffff;
+    --text: #1f2937;
+    --muted: #6b7280;
+    --primary: #4f46e5;
+    --primary-dark: #4338ca;
+    --danger: #dc2626;
+    --border: #e5e7eb;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+}
+
+a { color: var(--primary); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+.navbar {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    padding: 0.75rem 1.5rem;
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+}
+.navbar .brand { font-weight: 700; font-size: 1.1rem; color: var(--text); }
+.navbar .spacer { flex: 1; }
+.navbar .user { color: var(--muted); font-size: 0.9rem; }
+
+.container { max-width: 960px; margin: 1.5rem auto; padding: 0 1rem; }
+
+.card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+h1 { margin: 0 0 1rem; font-size: 1.5rem; }
+
+.toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 0.6rem 0.5rem; border-bottom: 1px solid var(--border); }
+th { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+td.actions { white-space: nowrap; text-align: right; }
+
+.badge {
+    display: inline-block;
+    padding: 0.1rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background: #e0e7ff;
+    color: var(--primary-dark);
+}
+.status-NEW { background: #e0e7ff; color: #3730a3; }
+.status-IN_PROGRESS { background: #fef3c7; color: #92400e; }
+.status-DONE { background: #d1fae5; color: #065f46; }
+.priority-HIGH { background: #fee2e2; color: #991b1b; }
+.priority-MEDIUM { background: #fef3c7; color: #92400e; }
+.priority-LOW { background: #e5e7eb; color: #374151; }
+
+.btn {
+    display: inline-block;
+    padding: 0.45rem 0.9rem;
+    border: 1px solid var(--primary);
+    border-radius: 8px;
+    background: var(--primary);
+    color: #fff;
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+.btn:hover { background: var(--primary-dark); text-decoration: none; }
+.btn-secondary { background: transparent; color: var(--primary); }
+.btn-secondary:hover { background: #eef2ff; }
+.btn-danger { background: var(--danger); border-color: var(--danger); }
+.btn-danger:hover { background: #b91c1c; }
+.btn-link { background: transparent; border: none; color: var(--primary); padding: 0; }
+.btn-link:hover { background: transparent; text-decoration: underline; }
+
+form.inline { display: inline; margin: 0; }
+
+.field { margin-bottom: 1rem; }
+.field label { display: block; margin-bottom: 0.25rem; font-weight: 600; font-size: 0.9rem; }
+.field input, .field select, .field textarea {
+    width: 100%;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font: inherit;
+    background: #fff;
+}
+.field input.error, .field textarea.error { border-color: var(--danger); }
+.error-text { color: var(--danger); font-size: 0.85rem; margin: 0.25rem 0 0; }
+
+.alert { padding: 0.65rem 0.9rem; border-radius: 8px; margin-bottom: 1rem; font-size: 0.9rem; }
+.alert-success { background: #d1fae5; color: #065f46; }
+.alert-error { background: #fee2e2; color: #991b1b; }
+.alert-info { background: #e0e7ff; color: #3730a3; }
+
+.empty { color: var(--muted); text-align: center; padding: 2rem 0; }
+.muted { color: var(--muted); }
+
+.login-wrapper { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1rem; }
+.login-card { width: 100%; max-width: 380px; }
+.login-card h1 { text-align: center; }
+.login-card .btn { width: 100%; padding: 0.65rem; }
+
+dl.details { display: grid; grid-template-columns: 160px 1fr; gap: 0.5rem 1rem; margin: 0 0 1.25rem; }
+dl.details dt { color: var(--muted); }
+dl.details dd { margin: 0; }

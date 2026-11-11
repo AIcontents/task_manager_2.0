@@ -66,6 +66,16 @@
             <artifactId>spring-boot-starter-security</artifactId>
         </dependency>
 
+        <!-- Веб-интерфейс (Часть 10): Thymeleaf + sec:authorize / #authentication в шаблонах -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-thymeleaf</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.thymeleaf.extras</groupId>
+            <artifactId>thymeleaf-extras-springsecurity6</artifactId>
+        </dependency>
+
         <!-- JWT: JJWT 0.12.x -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>

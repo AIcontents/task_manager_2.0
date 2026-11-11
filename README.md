@@ -270,3 +270,33 @@ curl -i -X DELETE localhost:8080/tasks/1 -H "Authorization: Bearer $TOKEN"   # �
 > **401 и 403:** 401 - «не знаю, кто вы» (нет или неверный токен), 403 - «знаю, но не пущу» (нет прав).
 > `@ControllerAdvice` их не перехватывает: они возникают в цепочке фильтров раньше `DispatcherServlet`
 > (поэтому нужны `AuthenticationEntryPoint` и `AccessDeniedHandler`).
+
+## Часть 10. Веб-интерфейс: Thymeleaf + Spring Security
+
+Страницы на сервере (`@Controller` + шаблоны) поверх **того же** `TaskService`: интерфейс сервиса не менялся.
+
+| URL | Что показывает |
+|---|---|
+| `/login` | форма входа (`auth/login.html`), `?error` - неверные данные, `?logout` - вы вышли |
+| `/web/tasks` | список задач (`tasks/list.html`): USER видит свои задачи, ADMIN - все и колонку «Владелец» |
+| `/web/tasks/{id}` | детали (`tasks/detail.html`) |
+| `/web/tasks/new`, `/web/tasks/{id}/edit` | одна форма `tasks/form.html` для создания и редактирования, ошибки валидации через `th:errors` |
+| `POST /web/tasks`, `/web/tasks/{id}`, `/web/tasks/{id}/delete` | создание, обновление, удаление (HTML-формы умеют только GET/POST); после успеха - redirect (Post-Redirect-Get) |
+
+Как устроено:
+
+* **Две цепочки безопасности** (`SecurityConfig`): REST (`/api/**`, `/tasks/**`, `/auth/**`, Swagger) остаётся на JWT без сессий и CSRF;
+  всё остальное - форма логина, сессия в cookie, **CSRF включён** (`th:action` сам добавляет скрытое поле `_csrf`).
+  Анонимный пользователь на `/web/tasks` получает редирект на `/login`, а на `/tasks` - JSON 401.
+* `AuthWebController` (`/login`, `/`), `TaskWebController` (`/web/tasks/**`); `@ModelAttribute("priorities"/"statuses")` наполняет выпадающие списки.
+* `layout.html` - общие фрагменты: `head(title)` и `navbar` (имя пользователя через `${#authentication.name}`, кнопка «Выйти» - POST-форма).
+* **Роли в шаблонах:** `sec:authorize="hasRole('ADMIN')"` вырезает кнопку «Удалить» на сервере; сам URL удаления защищён
+  `@PreAuthorize("hasRole('ADMIN')")` - скрытой кнопки недостаточно.
+* `error/403.html`, `error/404.html`, `error.html`; `TaskNotFoundException` помечено `@ResponseStatus(NOT_FOUND)`.
+* `AppProperties`/`AppRunner` и прочее из Части 1 не затронуты; стили - `static/css/app.css`.
+
+Вход в dev-режиме: <http://localhost:8080/login> -> `admin@example.com` / `admin12345` (создаётся при старте). Обычного пользователя
+создайте через `POST /auth/register` (или Swagger UI), затем войдите в веб-интерфейс теми же email и паролем.
+
+Тесты: `TaskWebControllerTest` (`@WebMvcTest`, настоящий рендеринг шаблонов, роли, CSRF, redirect) и `WebFlowIntegrationTest`
+(форма логина -> сессия -> создание -> права -> logout на настоящих бинах).

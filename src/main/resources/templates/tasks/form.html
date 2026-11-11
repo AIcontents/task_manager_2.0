@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{layout :: head('Задача')}"></head>
+<body>
+<nav th:replace="~{layout :: navbar}"></nav>
+
+<main class="container">
+    <div class="card">
+        <!-- Один шаблон для создания и редактирования: отличается только taskId в модели -->
+        <h1 th:text="${taskId != null} ? 'Редактирование задачи' : 'Новая задача'">Новая задача</h1>
+
+        <!-- th:action: с taskId - POST /web/tasks/{id} (обновление), без него - POST /web/tasks (создание) -->
+        <form th:object="${taskRequest}"
+              th:action="${taskId != null} ? @{/web/tasks/{id}(id=${taskId})} : @{/web/tasks}"
+              method="post" novalidate="novalidate">
+
+            <div class="alert alert-error" th:if="${#fields.hasGlobalErrors()}">
+                <p th:each="err : ${#fields.globalErrors()}" th:text="${err}">Общая ошибка</p>
+            </div>
+
+            <div class="field">
+                <label for="title">Название *</label>
+                <input type="text" id="title" th:field="*{title}" th:errorclass="error" maxlength="255"/>
+                <p class="error-text" th:if="${#fields.hasErrors('title')}" th:errors="*{title}">Ошибка названия</p>
+            </div>
+
+            <div class="field">
+                <label for="description">Описание</label>
+                <textarea id="description" th:field="*{description}" th:errorclass="error" rows="4"></textarea>
+                <p class="error-text" th:if="${#fields.hasErrors('description')}" th:errors="*{description}">Ошибка описания</p>
+            </div>
+
+            <div class="field">
+                <label for="priority">Приоритет</label>
+                <select id="priority" th:field="*{priority}">
+                    <option value="">По умолчанию</option>
+                    <option th:each="p : ${priorities}" th:value="${p}" th:text="${p}">MEDIUM</option>
+                </select>
+            </div>
+
+            <!-- статус можно менять только у существующей задачи -->
+            <div class="field" th:if="${taskId != null}">
+                <label for="status">Статус</label>
+                <select id="status" th:field="*{status}">
+                    <option th:each="s : ${statuses}" th:value="${s}" th:text="${s}">NEW</option>
+                </select>
+            </div>
+
+            <button class="btn" type="submit">Сохранить</button>
+            <a class="btn btn-secondary" th:href="@{/web/tasks}">Отмена</a>
+        </form>
+    </div>
+</main>
+</body>
+</html>

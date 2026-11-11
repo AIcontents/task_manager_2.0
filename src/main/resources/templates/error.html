@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{layout :: head('Ошибка')}"></head>
+<body>
+<main class="container">
+    <div class="card">
+        <h1>Что-то пошло не так</h1>
+        <p class="muted">Не удалось выполнить запрос. Попробуйте ещё раз или вернитесь к списку задач.</p>
+        <a class="btn" th:href="@{/web/tasks}">К списку задач</a>
+    </div>
+</main>
+</body>
+</html>

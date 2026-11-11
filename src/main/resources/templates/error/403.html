@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{layout :: head('Нет доступа')}"></head>
+<body>
+<main class="container">
+    <div class="card">
+        <h1>403 - недостаточно прав</h1>
+        <p class="muted">Эта задача принадлежит другому пользователю, или действие доступно только администратору.</p>
+        <a class="btn" th:href="@{/web/tasks}">К списку задач</a>
+    </div>
+</main>
+</body>
+</html>

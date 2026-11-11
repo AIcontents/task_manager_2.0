@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{layout :: head('Задачи')}"></head>
+<body>
+<nav th:replace="~{layout :: navbar}"></nav>
+
+<main class="container">
+    <div class="toolbar">
+        <h1>Задачи</h1>
+        <a class="btn" th:href="@{/web/tasks/new}">+ Создать задачу</a>
+    </div>
+
+    <div class="alert alert-success" th:if="${message}" th:text="${message}">Задача создана</div>
+
+    <div class="card">
+        <p class="empty" th:if="${#lists.isEmpty(tasks)}">Задач пока нет. Создайте первую!</p>
+
+        <table th:unless="${#lists.isEmpty(tasks)}">
+            <thead>
+            <tr>
+                <th>#</th>
+                <th>Название</th>
+                <th>Приоритет</th>
+                <th>Статус</th>
+                <th sec:authorize="hasRole('ADMIN')">Владелец</th>
+                <th></th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="task : ${tasks}">
+                <td th:text="${task.id}">1</td>
+                <td><a th:href="@{/web/tasks/{id}(id=${task.id})}" th:text="${task.title}">Название задачи</a></td>
+                <td><span class="badge" th:classappend="'priority-' + ${task.priority}" th:text="${task.priority}">HIGH</span></td>
+                <td><span class="badge" th:classappend="'status-' + ${task.status}" th:text="${task.status}">NEW</span></td>
+                <td sec:authorize="hasRole('ADMIN')" th:text="${task.ownerEmail} ?: '—'">owner@example.com</td>
+                <td class="actions">
+                    <!-- sec:authorize вырезает элемент на сервере: в HTML для USER кнопки удаления просто нет -->
+                    <a sec:authorize="hasAnyRole('USER','ADMIN')" th:href="@{/web/tasks/{id}/edit(id=${task.id})}">Редактировать</a>
+                    <form class="inline" sec:authorize="hasRole('ADMIN')"
+                          th:action="@{/web/tasks/{id}/delete(id=${task.id})}" method="post"
+                          onsubmit="return confirm('Удалить задачу?');">
+                        <button class="btn btn-danger" type="submit">Удалить</button>
+                    </form>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+</main>
+</body>
+</html>
