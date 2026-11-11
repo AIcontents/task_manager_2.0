@@ -37,9 +37,14 @@ app:
   name: Task Manager
   max-tasks: 100
   default-priority: MEDIUM
-  runner:
-    # Консольный сценарий из Части 1. Включить: --app.runner.enabled=true
-    enabled: false
+
+jwt:
+  # Base64-строка, декодируется минимум в 32 байта (256 бит) - иначе JJWT бросит WeakKeyException при старте.
+  # Значение по умолчанию - ТОЛЬКО для локальной разработки; в docker/production задаётся переменной JWT_SECRET.
+  # Новый секрет: openssl rand -base64 48
+  secret: ${JWT_SECRET:Iwyc1bt1Rqc4BDhjVXutSLcQFv7E+nFkpFvqzWQq9aFtZtmMsg1vNSWIaTVrfDQQ}
+  expiration: ${JWT_EXPIRATION:86400000}                   # access-токен: 24 часа (мс); для 15 минут: 900000
+  refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000}  # refresh-токен: 7 дней (мс)
 
 ---
 # Профиль dev (по умолчанию): файловая H2 - данные переживают перезапуск, демо-данные, подробные логи.
@@ -52,6 +57,11 @@ spring:
   flyway:
     # db/seed - демо-данные (repeatable-миграция), только для dev
     locations: classpath:db/migration,classpath:db/seed
+app:
+  admin:
+    # Тестовый ADMIN создаётся при старте, если задана пара email+password (только dev; в docker - переменные окружения)
+    email: admin@example.com
+    password: admin12345
 logging:
   level:
     org.flywaydb: DEBUG     # какие миграции и в каком порядке применены

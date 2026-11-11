@@ -9,5 +9,8 @@
     <include file="db/changelog/changes/001-create-tasks.sql"/>
     <include file="db/changelog/changes/002-add-created-at.sql"/>
     <include file="db/changelog/changes/003-create-audit-logs.sql"/>
+    <include file="db/changelog/changes/004-create-users.sql"/>
+    <include file="db/changelog/changes/005-add-owner-to-tasks.sql"/>
+    <include file="db/changelog/changes/006-create-refresh-tokens.sql"/>
 
 </databaseChangeLog>

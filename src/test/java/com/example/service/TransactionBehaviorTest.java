@@ -85,7 +85,7 @@ class TransactionBehaviorTest {
 
     @Test
     void taskService_create_shouldWriteAuditRecord() {
-        TaskResponse created = taskService.create(new TaskRequest("С аудитом", "описание", Priority.LOW));
+        TaskResponse created = taskService.create(new TaskRequest("С аудитом", "описание", Priority.LOW), null);
 
         assertThat(auditLogRepository.findAll())
                 .extracting(AuditLog::getAction, AuditLog::getTaskId)
@@ -94,7 +94,7 @@ class TransactionBehaviorTest {
 
     @Test
     void taskService_delete_whenTaskMissing_shouldThrowAndWriteNoAudit() {
-        assertThatThrownBy(() -> taskService.delete(999_999L))
+        assertThatThrownBy(() -> taskService.delete(999_999L, null))
                 .isInstanceOf(TaskNotFoundException.class)
                 .hasMessageContaining("999999");
 

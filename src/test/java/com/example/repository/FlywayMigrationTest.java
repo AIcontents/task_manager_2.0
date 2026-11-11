@@ -29,7 +29,7 @@ class FlywayMigrationTest {
         MigrationInfo[] applied = flyway.info().applied();
 
         assertThat(applied).extracting(info -> info.getVersion().getVersion())
-                .startsWith("1", "2", "3");
+                .startsWith("1", "2", "3", "4", "5", "6");
         assertThat(applied).allMatch(info -> info.getState() == MigrationState.SUCCESS);
     }
 
@@ -38,7 +38,7 @@ class FlywayMigrationTest {
         List<String> columns = columnsOf("tasks");
 
         assertThat(columns).containsExactlyInAnyOrder(
-                "id", "title", "description", "priority", "status", "created_at");
+                "id", "title", "description", "priority", "status", "created_at", "owner_id");
     }
 
     @Test
@@ -46,6 +46,16 @@ class FlywayMigrationTest {
         List<String> columns = columnsOf("audit_logs");
 
         assertThat(columns).containsExactlyInAnyOrder("id", "action", "task_id", "created_at");
+    }
+
+    @Test
+    void usersTable_shouldHaveAllEntityColumns() {
+        assertThat(columnsOf("users")).containsExactlyInAnyOrder("id", "email", "password", "role");
+    }
+
+    @Test
+    void refreshTokensTable_shouldHaveAllEntityColumns() {
+        assertThat(columnsOf("refresh_tokens")).containsExactlyInAnyOrder("id", "token", "user_id", "expires_at");
     }
 
     @Test

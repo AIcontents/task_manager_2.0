@@ -195,3 +195,78 @@ Liquibase стоило бы выбрать, если нужны бесплатн
 ./mvnw test                       # все тесты
 ./mvnw test -Dtest=TaskServiceTest
 ```
+
+## Части 8 и 9. Spring Security + JWT
+
+В документе два ТЗ на один и тот же шаг («JWT + Authentication» и «Spring Security + JWT»): они отличаются префиксом путей
+(`/api/...` и `/...`), форматом ролей, сроками токенов и кодами ошибок. Реализован **объединённый вариант**, который
+выполняет оба; на один коммит поставлены два тега: `part-8-security-jwt` и `part-9-security-jwt`.
+
+### Как это работает
+
+```
+POST /auth/register|login -> AuthService -> JwtService.generateToken -> {"token","accessToken","refreshToken"}
+запрос с "Authorization: Bearer <accessToken>" -> JwtAuthFilter -> SecurityContext -> @PreAuthorize -> контроллер
+```
+
+| Компонент | Что делает |
+|---|---|
+| `model/User` (`users`) | email (unique), BCrypt-хеш, `Role` (`ROLE_USER`, `ROLE_ADMIN`); реализует `UserDetails` |
+| `security/JwtService` | JJWT 0.12: `generateToken`, `extractUsername`, `isTokenValid`; секрет - Base64, ≥ 256 бит |
+| `security/JwtAuthFilter` | читает Bearer-токен; просроченный -> `401 {"error":"Token expired"}`; подделанный -> анонимный запрос -> 401 |
+| `security/SecurityExceptionHandler` | JSON для 401 (`AuthenticationEntryPoint`) и 403 (`AccessDeniedHandler`) |
+| `config/SecurityConfig` | stateless, CSRF выключен, `@EnableMethodSecurity`, публично только `/auth/**`, `/api/auth/**` и Swagger |
+| `service/AuthService`, `RefreshTokenService` | регистрация (всегда USER), вход, refresh с **ротацией**, logout |
+| `controller/AuthController` | `/auth/register`, `/login`, `/refresh`, `/logout` (то же под `/api/auth/...`) |
+| `config/OpenApiConfig` | Swagger UI: <http://localhost:8080/swagger-ui.html>, кнопка Authorize (Bearer) |
+| `runner/AdminInitializer` | тестовый ADMIN при старте (dev: `admin@example.com` / `admin12345`) |
+
+Права на задачи (`TaskController` + `TaskServiceImpl`, текущий пользователь передаётся в сервис через `@AuthenticationPrincipal`):
+
+* `Task.owner` (`tasks.owner_id`); создавая задачу, пользователь становится владельцем.
+* `GET /tasks`, `/stats`, `/search`, `/today`: обычный пользователь видит только свои задачи, ADMIN - все. `GET /tasks/my` - только свои (и у ADMIN).
+* `POST` - `hasAnyRole('USER','ADMIN')`; `PUT`, `PATCH /{id}/status`, `DELETE` -
+  `hasRole('ADMIN') or @taskService.isOwner(#id, authentication.name)`; чужая задача -> **403**.
+  Дополнительно сервис сам бросает `AccessDeniedException("Not your task")`.
+
+### Где два ТЗ расходились и что выбрано
+
+| Вопрос | Часть 8 | Часть 9 | В проекте |
+|---|---|---|---|
+| Префикс | `/api/auth`, `/api/tasks` | `/auth`, `/tasks` | **работают оба** |
+| Роли | `USER`/`ADMIN` | `ROLE_USER`/`ROLE_ADMIN` | `ROLE_USER`/`ROLE_ADMIN` (`hasRole('ADMIN')` работает) |
+| Ответ login | `token`, затем `accessToken`+`refreshToken` | `token`, затем `accessToken`+`refreshToken` | все три поля |
+| Дубликат email | 400 | 409 | **409** `{"error":"Email already registered"}` |
+| Просроченный/неизвестный refresh | 403 | 401 | **401** |
+| Срок access-токена | 15 минут | 24 часа | 24 часа (`JWT_EXPIRATION=900000` - 15 минут) |
+| Удаление | только ADMIN (п. 3) / владелец или ADMIN (п. 5) | только ADMIN / свои задачи | **владелец или ADMIN** |
+| `getAll` | только свои | все + `/my` | свои (ADMIN - все) + `/my` |
+
+> **Ошибка в ТЗ Части 9:** секрет `dGVzdFNlY3JldEtleVRoYXRJc0xvbmdFbm91Z2g=` после декодирования - всего 29 байт (232 бита),
+> JJWT выбросит `WeakKeyException`. В проекте используется секрет ≥ 48 байт, а `JwtServiceTest` показывает, что
+> короткий секрет отвергается.
+
+### Быстрая проверка
+
+```bash
+curl -s -X POST localhost:8080/auth/register -H 'Content-Type: application/json' \
+     -d '{"email":"user@test.com","password":"password123"}'          # {"token":"eyJ...","accessToken":"...","refreshToken":"..."}
+TOKEN=<accessToken>
+curl -s localhost:8080/tasks -H "Authorization: Bearer $TOKEN"        # 200, без токена - 401
+curl -i -X DELETE localhost:8080/tasks/1 -H "Authorization: Bearer $TOKEN"   # чужая задача - 403
+```
+
+### Тесты
+
+| Тест | Что проверяет |
+|---|---|
+| `JwtServiceTest` | генерация/проверка токена, истёкший, подделанный, чужой секрет, слабый секрет (`WeakKeyException`) |
+| `AuthServiceTest` | BCrypt, роль USER, нормализация email, ротация refresh-токена, logout (Mockito) |
+| `TaskServiceTest` | владелец, `AccessDeniedException("Not your task")`, видимость задач USER/ADMIN, `isOwner` |
+| `TaskControllerTest` (`@WebMvcTest`) | 401/403/404/400/201/204, SpEL `@taskService.isOwner`, `JwtAuthFilter` (истёк, битый, валидный токен) |
+| `AuthControllerTest` (`@WebMvcTest`) | register 200/409/400, login 200/401, refresh 200/401, logout 401/204 |
+| `AuthFlowIntegrationTest` (`@SpringBootTest`) | register -> login -> задачи; USER не удалит чужую задачу, ADMIN удалит; `/tasks/my`; ротация refresh; logout; Swagger |
+
+> **401 и 403:** 401 - «не знаю, кто вы» (нет или неверный токен), 403 - «знаю, но не пущу» (нет прав).
+> `@ControllerAdvice` их не перехватывает: они возникают в цепочке фильтров раньше `DispatcherServlet`
+> (поэтому нужны `AuthenticationEntryPoint` и `AccessDeniedHandler`).

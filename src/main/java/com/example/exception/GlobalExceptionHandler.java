@@ -4,6 +4,8 @@ import com.example.dto.ErrorResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -38,6 +40,29 @@ public class GlobalExceptionHandler {
         String message = String.join("; ", fieldErrors.values());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new ErrorResponse(HttpStatus.BAD_REQUEST.value(), "Validation failed", message, fieldErrors));
+    }
+
+    @ExceptionHandler(EmailAlreadyRegisteredException.class)
+    public ResponseEntity<ErrorResponse> handleEmailTaken(EmailAlreadyRegisteredException ex) {
+        return build(HttpStatus.CONFLICT, "Email already registered", ex.getMessage());
+    }
+
+    @ExceptionHandler(InvalidRefreshTokenException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidRefreshToken(InvalidRefreshTokenException ex) {
+        return build(HttpStatus.UNAUTHORIZED, "Invalid refresh token", ex.getMessage());
+    }
+
+    /**
+     * Неверный email или пароль при login: AuthenticationManager бросает BadCredentialsException.
+     * AccessDeniedException (403) здесь намеренно НЕ обрабатывается: его превращает в JSON
+     * SecurityExceptionHandler внутри цепочки фильтров Spring Security.
+     */
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<ErrorResponse> handleAuthentication(AuthenticationException ex) {
+        String message = ex instanceof BadCredentialsException
+                ? "Неверный email или пароль"
+                : "Требуется аутентификация";
+        return build(HttpStatus.UNAUTHORIZED, "Unauthorized", message);
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

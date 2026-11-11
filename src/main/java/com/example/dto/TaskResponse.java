@@ -13,15 +13,17 @@ public class TaskResponse {
     private final String priority;
     private final String status;
     private final LocalDateTime createdAt;
+    private final String ownerEmail;
 
     public TaskResponse(Long id, String title, String description, String priority,
-                        String status, LocalDateTime createdAt) {
+                        String status, LocalDateTime createdAt, String ownerEmail) {
         this.id = id;
         this.title = title;
         this.description = description;
         this.priority = priority;
         this.status = status;
         this.createdAt = createdAt;
+        this.ownerEmail = ownerEmail;
     }
 
     public static TaskResponse from(Task task) {
@@ -31,7 +33,8 @@ public class TaskResponse {
                 task.getDescription(),
                 task.getPriority() != null ? task.getPriority().name() : null,
                 task.getStatus() != null ? task.getStatus().name() : null,
-                task.getCreatedAt());
+                task.getCreatedAt(),
+                task.getOwner() != null ? task.getOwner().getEmail() : null);
     }
 
     public Long getId() {
@@ -56,6 +59,11 @@ public class TaskResponse {
 
     public LocalDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    /** Email владельца задачи; null, если у задачи нет владельца. */
+    public String getOwnerEmail() {
+        return ownerEmail;
     }
 
     @Override

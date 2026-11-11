@@ -7,8 +7,10 @@ import com.example.dto.TaskResponse;
 import com.example.exception.TaskLimitExceededException;
 import com.example.exception.TaskNotFoundException;
 import com.example.model.Priority;
+import com.example.model.Role;
 import com.example.model.Status;
 import com.example.model.Task;
+import com.example.model.User;
 import com.example.repository.TaskRepository;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -17,6 +19,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,10 +30,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-@Service
+@Service("taskService") // имя бина используется в SpEL: @taskService.isOwner(...)
 @Transactional // все методы транзакционны (read-write) по умолчанию; для чтения переопределено ниже
 public class TaskServiceImpl implements TaskService {
 
@@ -68,12 +72,14 @@ public class TaskServiceImpl implements TaskService {
 
     @Loggable("Создание задачи")
     @Override
-    public TaskResponse create(TaskRequest request) {
+    public TaskResponse create(TaskRequest request, User currentUser) {
         requireTitle(request.getTitle());
         if (taskRepository.count() >= appProperties.getMaxTasks()) {
             throw new TaskLimitExceededException(appProperties.getMaxTasks());
         }
-        Task saved = taskRepository.save(toEntity(request));
+        Task task = toEntity(request);
+        task.setOwner(currentUser);
+        Task saved = taskRepository.save(task);
         // REQUIRES_NEW: запись аудита коммитится независимо от основной транзакции
         auditService.logAction("CREATE", saved.getId());
         return TaskResponse.from(saved);
@@ -81,49 +87,53 @@ public class TaskServiceImpl implements TaskService {
 
     @Transactional(readOnly = true)
     @Override
-    public List<TaskResponse> getAll() {
-        return taskRepository.findAll().stream()
+    public List<TaskResponse> getAll(User currentUser) {
+        return visibleTasks(currentUser).stream()
                 .map(TaskResponse::from)
                 .toList();
     }
 
     @Transactional(readOnly = true)
     @Override
-    public Page<TaskResponse> getAll(String status, String priority, int page, int size, String sort) {
+    public Page<TaskResponse> getAll(String status, String priority, int page, int size, String sort,
+                                     User currentUser) {
         Status statusFilter = parseEnum(Status.class, status, "status");
         Priority priorityFilter = parseEnum(Priority.class, priority, "priority");
         Pageable pageable = buildPageable(page, size, sort);
+        return findPage(currentUser, statusFilter, priorityFilter, pageable).map(TaskResponse::from);
+    }
 
-        // Derived queries: Spring Data сам строит SQL по имени метода
-        Page<Task> result;
-        if (statusFilter != null && priorityFilter != null) {
-            result = taskRepository.findByStatusAndPriority(statusFilter, priorityFilter, pageable);
-        } else if (statusFilter != null) {
-            result = taskRepository.findByStatus(statusFilter, pageable);
-        } else if (priorityFilter != null) {
-            result = taskRepository.findByPriority(priorityFilter, pageable);
-        } else {
-            result = taskRepository.findAll(pageable);
+    @Transactional(readOnly = true)
+    @Override
+    public List<TaskResponse> getMyTasks(User currentUser) {
+        if (currentUser == null) {
+            return List.of();
         }
-        return result.map(TaskResponse::from);
+        return taskRepository.findAllByOwner(currentUser).stream()
+                .map(TaskResponse::from)
+                .toList();
     }
 
     @Transactional(readOnly = true)
     @Override
-    public Optional<TaskResponse> findById(Long id) {
-        return taskRepository.findById(id).map(TaskResponse::from);
+    public Optional<TaskResponse> findById(Long id, User currentUser) {
+        return taskRepository.findById(id).map(task -> {
+            requireAccess(task, currentUser);
+            return TaskResponse.from(task);
+        });
     }
 
     @Transactional(readOnly = true)
     @Override
-    public TaskResponse getOrThrow(Long id) {
-        return findById(id).orElseThrow(() -> new TaskNotFoundException(id));
+    public TaskResponse getOrThrow(Long id, User currentUser) {
+        return findById(id, currentUser).orElseThrow(() -> new TaskNotFoundException(id));
     }
 
     @Loggable("Обновление задачи")
     @Override
-    public Optional<TaskResponse> update(Long id, TaskRequest request) {
+    public Optional<TaskResponse> update(Long id, TaskRequest request, User currentUser) {
         return taskRepository.findById(id).map(task -> {
+            requireAccess(task, currentUser);
             requireTitle(request.getTitle());
             task.setTitle(request.getTitle().trim());
             task.setDescription(request.getDescription());
@@ -138,8 +148,9 @@ public class TaskServiceImpl implements TaskService {
     }
 
     @Override
-    public Optional<TaskResponse> updateStatus(Long id, Status status) {
+    public Optional<TaskResponse> updateStatus(Long id, Status status, User currentUser) {
         return taskRepository.findById(id).map(task -> {
+            requireAccess(task, currentUser);
             task.setStatus(status);
             return TaskResponse.from(taskRepository.save(task));
         });
@@ -147,45 +158,60 @@ public class TaskServiceImpl implements TaskService {
 
     @Loggable("Удаление задачи")
     @Override
-    public void delete(Long id) {
-        if (!taskRepository.existsById(id)) {
-            throw new TaskNotFoundException(id);
-        }
+    public void delete(Long id, User currentUser) {
+        Task task = taskRepository.findById(id).orElseThrow(() -> new TaskNotFoundException(id));
+        requireAccess(task, currentUser); // не владелец и не ADMIN -> AccessDeniedException("Not your task")
         taskRepository.deleteById(id);
         auditService.logAction("DELETE", id);
     }
 
     @Transactional(readOnly = true)
     @Override
-    public Map<String, Long> countByStatus() {
+    public boolean isOwner(Long taskId, String email) {
+        return taskRepository.findById(taskId)
+                .map(task -> task.getOwner() != null && task.getOwner().getEmail().equalsIgnoreCase(email))
+                .orElse(false);
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public Map<String, Long> countByStatus(User currentUser) {
         // Сначала нули по всем статусам, чтобы в ответе всегда были все ключи
         Map<String, Long> result = new LinkedHashMap<>();
         for (Status status : Status.values()) {
             result.put(status.name(), 0L);
         }
-        // JPQL: SELECT t.status, COUNT(t) FROM Task t GROUP BY t.status
-        for (Object[] row : taskRepository.countGroupedByStatus()) {
-            result.put(String.valueOf(row[0]), ((Number) row[1]).longValue());
+        if (isAdmin(currentUser)) {
+            // JPQL: SELECT t.status, COUNT(t) FROM Task t GROUP BY t.status
+            for (Object[] row : taskRepository.countGroupedByStatus()) {
+                result.put(String.valueOf(row[0]), ((Number) row[1]).longValue());
+            }
+        } else if (currentUser != null) {
+            for (Task task : taskRepository.findAllByOwner(currentUser)) {
+                result.merge(task.getStatus().name(), 1L, Long::sum);
+            }
         }
         return result;
     }
 
     @Transactional(readOnly = true)
     @Override
-    public List<TaskResponse> search(String keyword) {
+    public List<TaskResponse> search(String keyword, User currentUser) {
         if (keyword == null || keyword.isBlank()) {
             throw new IllegalArgumentException("Параметр keyword не может быть пустым");
         }
         return taskRepository.searchByKeyword(keyword.trim()).stream()
+                .filter(task -> canAccess(task, currentUser))
                 .map(TaskResponse::from)
                 .toList();
     }
 
     @Transactional(readOnly = true)
     @Override
-    public List<TaskResponse> getCreatedToday() {
+    public List<TaskResponse> getCreatedToday(User currentUser) {
         LocalDate today = LocalDate.now();
         return taskRepository.findCreatedBetween(today.atStartOfDay(), today.plusDays(1).atStartOfDay()).stream()
+                .filter(task -> canAccess(task, currentUser))
                 .map(TaskResponse::from)
                 .toList();
     }
@@ -195,6 +221,62 @@ public class TaskServiceImpl implements TaskService {
     @Override
     public TaskStatsService getStats() {
         return statsProvider.getObject();
+    }
+
+    private List<Task> visibleTasks(User user) {
+        if (user == null) {
+            return List.of();
+        }
+        return isAdmin(user) ? taskRepository.findAll() : taskRepository.findAllByOwner(user);
+    }
+
+    /** Derived queries: ADMIN видит все задачи, обычный пользователь - только свои. */
+    private Page<Task> findPage(User user, Status status, Priority priority, Pageable pageable) {
+        if (user == null) {
+            return Page.empty(pageable);
+        }
+        if (isAdmin(user)) {
+            if (status != null && priority != null) {
+                return taskRepository.findByStatusAndPriority(status, priority, pageable);
+            }
+            if (status != null) {
+                return taskRepository.findByStatus(status, pageable);
+            }
+            if (priority != null) {
+                return taskRepository.findByPriority(priority, pageable);
+            }
+            return taskRepository.findAll(pageable);
+        }
+        if (status != null && priority != null) {
+            return taskRepository.findByOwnerAndStatusAndPriority(user, status, priority, pageable);
+        }
+        if (status != null) {
+            return taskRepository.findByOwnerAndStatus(user, status, pageable);
+        }
+        if (priority != null) {
+            return taskRepository.findByOwnerAndPriority(user, priority, pageable);
+        }
+        return taskRepository.findByOwner(user, pageable);
+    }
+
+    private static boolean isAdmin(User user) {
+        return user != null && user.getRole() == Role.ROLE_ADMIN;
+    }
+
+    private static boolean canAccess(Task task, User user) {
+        if (user == null) {
+            return false;
+        }
+        if (isAdmin(user)) {
+            return true;
+        }
+        return task.getOwner() != null && Objects.equals(task.getOwner().getId(), user.getId());
+    }
+
+    private static void requireAccess(Task task, User user) {
+        if (!canAccess(task, user)) {
+            throw new AccessDeniedException("Not your task");
+        }
     }
 
     private Task toEntity(TaskRequest request) {

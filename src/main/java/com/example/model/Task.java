@@ -7,6 +7,8 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 
@@ -35,6 +37,11 @@ public class Task {
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    /** Владелец задачи; null у задач, созданных до появления пользователей (например, демо-данные). */
+    @ManyToOne
+    @JoinColumn(name = "owner_id")
+    private User owner;
 
     /** Обязательный конструктор без параметров: Hibernate создаёт объекты через него при чтении из БД. */
     public Task() {
@@ -103,6 +110,14 @@ public class Task {
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public User getOwner() {
+        return owner;
+    }
+
+    public void setOwner(User owner) {
+        this.owner = owner;
     }
 
     @Override

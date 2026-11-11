@@ -3,6 +3,7 @@ package com.example.repository;
 import com.example.model.Priority;
 import com.example.model.Status;
 import com.example.model.Task;
+import com.example.model.User;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -42,6 +43,19 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
     Page<Task> findByPriority(Priority priority, Pageable pageable);
 
     Page<Task> findByStatusAndPriority(Status status, Priority priority, Pageable pageable);
+
+    // --- Задачи владельца (обычный пользователь видит только свои) ---
+
+    // SELECT * FROM tasks WHERE owner_id = ?
+    List<Task> findAllByOwner(User owner);
+
+    Page<Task> findByOwner(User owner, Pageable pageable);
+
+    Page<Task> findByOwnerAndStatus(User owner, Status status, Pageable pageable);
+
+    Page<Task> findByOwnerAndPriority(User owner, Priority priority, Pageable pageable);
+
+    Page<Task> findByOwnerAndStatusAndPriority(User owner, Status status, Priority priority, Pageable pageable);
 
     // --- JPQL: работает с именами классов и полей (Task, t.status), а не таблиц и колонок ---
 

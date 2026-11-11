@@ -1,8 +1,10 @@
 package com.example.repository;
 
 import com.example.model.Priority;
+import com.example.model.Role;
 import com.example.model.Status;
 import com.example.model.Task;
+import com.example.model.User;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
@@ -29,6 +31,9 @@ class TaskRepositoryTest {
 
     @Autowired
     private TaskRepository taskRepository;
+
+    @Autowired
+    private UserRepository userRepository;
 
     @Test
     @Transactional // для наглядности: @DataJpaTest и так оборачивает каждый тест в откатываемую транзакцию
@@ -93,6 +98,40 @@ class TaskRepositoryTest {
 
         assertThat(result).extracting(Task::getTitle)
                 .containsExactlyInAnyOrder("Купить молоко", "Позвонить");
+    }
+
+    @Test
+    void findAllByOwner_shouldReturnOnlyTasksOfThatOwner() {
+        User alice = userRepository.save(new User("alice@test.com", "hash", Role.ROLE_USER));
+        User bob = userRepository.save(new User("bob@test.com", "hash", Role.ROLE_USER));
+        taskRepository.save(ownedTask("A1", alice, Status.NEW));
+        taskRepository.save(ownedTask("A2", alice, Status.DONE));
+        taskRepository.save(ownedTask("B1", bob, Status.NEW));
+
+        assertThat(taskRepository.findAllByOwner(alice)).extracting(Task::getTitle)
+                .containsExactlyInAnyOrder("A1", "A2");
+        assertThat(taskRepository.findAllByOwner(bob)).extracting(Task::getTitle).containsExactly("B1");
+    }
+
+    @Test
+    void findByOwnerAndStatus_shouldFilterByOwnerAndPage() {
+        User alice = userRepository.save(new User("alice@test.com", "hash", Role.ROLE_USER));
+        User bob = userRepository.save(new User("bob@test.com", "hash", Role.ROLE_USER));
+        taskRepository.save(ownedTask("A1", alice, Status.NEW));
+        taskRepository.save(ownedTask("A2", alice, Status.NEW));
+        taskRepository.save(ownedTask("A3", alice, Status.DONE));
+        taskRepository.save(ownedTask("B1", bob, Status.NEW));
+
+        Page<Task> page = taskRepository.findByOwnerAndStatus(alice, Status.NEW, PageRequest.of(0, 10, Sort.by("id")));
+
+        assertThat(page.getContent()).extracting(Task::getTitle).containsExactly("A1", "A2");
+        assertThat(page.getTotalElements()).isEqualTo(2);
+    }
+
+    private static Task ownedTask(String title, User owner, Status status) {
+        Task task = newTask(title, null, Priority.MEDIUM, status);
+        task.setOwner(owner);
+        return task;
     }
 
     private static Task newTask(String title, String description, Priority priority, Status status) {
