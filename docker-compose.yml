@@ -1,0 +1,51 @@
+# Запуск: docker compose up --build   (значения берутся из файла .env, образец - .env.example;
+# без .env работают значения по умолчанию после ":-" - только для локальной демонстрации)
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: taskapi-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-taskdb}
+      POSTGRES_USER: ${POSTGRES_USER:-taskuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-taskpass}
+    ports:
+      - "127.0.0.1:5432:5432"        # только с этого компьютера: psql / DBeaver
+    volumes:
+      - postgres_data:/var/lib/postgresql/data   # данные живут в volume и переживают docker compose down
+    healthcheck:
+      # "healthy" - когда PostgreSQL реально принимает подключения (процесс запущен != БД готова)
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-taskuser} -d ${POSTGRES_DB:-taskdb}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    image: taskapi-app
+    container_name: taskapi-app
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      # хост "postgres" - имя сервиса: внутри сети compose Docker сам разрешает его в IP контейнера
+      # (localhost внутри контейнера app - это сам контейнер app)
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-taskdb}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-taskuser}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-taskpass}
+      JWT_SECRET: ${JWT_SECRET:-devSecret12345678901234567890123456}
+      # тестовый администратор (иначе в системе нет ADMIN): смените пароль в .env
+      APP_ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
+      APP_ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin12345}
+    depends_on:
+      postgres:
+        condition: service_healthy   # app стартует только когда postgres прошёл healthcheck
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/login > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+volumes:
+  postgres_data:

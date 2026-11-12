@@ -61,6 +61,19 @@
             <artifactId>liquibase-core</artifactId>
         </dependency>
 
+        <!-- PostgreSQL для docker-профиля (Часть 11). Flyway 10+ вынес поддержку PostgreSQL в отдельный модуль -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+            <version>${flyway.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>

@@ -20,8 +20,10 @@ class JwtServiceTest {
     // Тестовые секреты: Base64 от 48 случайных байт (384 бита; минимум для HS256 - 256 бит)
     private static final String SECRET = "93/RdVC5LXvRIfJ4rpu+rSRuh3WwbE/u/uT0KJPRnxzeHhjLu8fOds0UPr0Aj93Y";
     private static final String OTHER_SECRET = "Ezs729vzqoCpF6mmZLi++yAV0swaM9oLoVw9wSPZa7zT98g1wu2YZSrA9I7JZzVW";
-    // Секрет из ТЗ Части 9 - после декодирования это всего 29 байт (232 бита), для HMAC-SHA он слишком короткий
+    // Секрет из ТЗ Части 9: как Base64 это 29 байт (232 бита) - мало, но как обычный текст - 40 символов (320 бит)
     private static final String SECRET_FROM_SPEC_PART_9 = "dGVzdFNlY3JldEtleVRoYXRJc0xvbmdFbm91Z2g=";
+    // Секрет из docker-compose в ТЗ Части 11: не Base64-ключ, а обычная строка из 35 символов
+    private static final String PLAIN_TEXT_SECRET_FROM_SPEC_PART_11 = "devSecret12345678901234567890123456";
 
     private static final long ONE_HOUR_MS = 3_600_000L;
 
@@ -112,8 +114,20 @@ class JwtServiceTest {
 
     @Test
     void constructor_withTooShortSecret_shouldThrowWeakKeyException() {
-        // секрет короче 256 бит: приложение не должно стартовать с таким ключом
-        assertThatThrownBy(() -> new JwtService(SECRET_FROM_SPEC_PART_9, ONE_HOUR_MS))
+        // 12 символов (96 бит) - слишком мало и как Base64, и как обычный текст: приложение не должно стартовать
+        assertThatThrownBy(() -> new JwtService("short-secret", ONE_HOUR_MS))
                 .isInstanceOf(WeakKeyException.class);
+    }
+
+    @Test
+    void constructor_withPlainTextSecretFromEnv_shouldWork() {
+        // секреты из ТЗ (Части 9 и 11) - не 256-битные Base64-ключи, но достаточно длинные как текст
+        for (String secret : new String[]{PLAIN_TEXT_SECRET_FROM_SPEC_PART_11, SECRET_FROM_SPEC_PART_9}) {
+            JwtService service = new JwtService(secret, ONE_HOUR_MS);
+
+            String token = service.generateToken(alice);
+
+            assertThat(service.isTokenValid(token, alice)).isTrue();
+        }
     }
 }

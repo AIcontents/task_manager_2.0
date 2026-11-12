@@ -33,6 +33,10 @@ spring:
     console:
       enabled: true         # http://localhost:8080/h2-console
 
+springdoc:
+  # в документацию попадает только REST API (страницы Thymeleaf /web/** и /login в Swagger не нужны)
+  paths-to-match: /api/**, /tasks/**, /auth/**
+
 app:
   name: Task Manager
   max-tasks: 100

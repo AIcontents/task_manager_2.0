@@ -1,0 +1,14 @@
+# Всё, что не нужно внутри образа (и что не должно туда попасть: секреты, история Git, старые JAR)
+target/
+.git/
+.gitignore
+.gitattributes
+.github/
+*.md
+.env
+*.log
+.idea/
+*.iml
+.vscode/
+data/
+docker-compose*.yml

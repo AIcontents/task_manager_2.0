@@ -11,6 +11,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 
 /**
@@ -21,14 +22,35 @@ import java.util.Date;
 @Service
 public class JwtService {
 
+    /** HMAC-SHA256 требует ключ не короче 256 бит (32 байта). */
+    private static final int MIN_KEY_BYTES = 32;
+
     private final SecretKey signingKey;
     private final long expirationMs;
 
     public JwtService(@Value("${jwt.secret}") String secret,
                       @Value("${jwt.expiration}") long expirationMs) {
         // Ключ короче 256 бит -> WeakKeyException: приложение не запустится с ненадёжным секретом
-        this.signingKey = Keys.hmacShaKeyFor(Decoders.BASE64.decode(secret));
+        this.signingKey = Keys.hmacShaKeyFor(keyBytes(secret));
         this.expirationMs = expirationMs;
+    }
+
+    /**
+     * Секрет - Base64-строка (так рекомендуют в JJWT: openssl rand -base64 48). Если строка не Base64 или после
+     * декодирования получается меньше 32 байт (например, обычный текст из .env вида "myProductionJwtSecret..."),
+     * в качестве ключа берутся байты самой строки. Любой вариант короче 32 байт отвергается (WeakKeyException).
+     */
+    private static byte[] keyBytes(String secret) {
+        byte[] decoded = null;
+        try {
+            decoded = Decoders.BASE64.decode(secret);
+        } catch (RuntimeException e) {
+            // не Base64 - будет использован текст как есть
+        }
+        if (decoded != null && decoded.length >= MIN_KEY_BYTES) {
+            return decoded;
+        }
+        return secret.getBytes(StandardCharsets.UTF_8);
     }
 
     public String generateToken(UserDetails userDetails) {

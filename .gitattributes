@@ -1,0 +1,11 @@
+# Единые переводы строк: мы работаем и на Windows, и в Linux-контейнерах.
+# mvnw с CRLF в контейнере падает: "/bin/sh^M: bad interpreter".
+* text=auto
+mvnw text eol=lf
+*.sh text eol=lf
+mvnw.cmd text eol=crlf
+*.sql text eol=lf
+*.java text eol=lf
+*.html text eol=lf
+*.yml text eol=lf
+*.properties text eol=lf
