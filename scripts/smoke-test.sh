@@ -19,7 +19,10 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 step() { echo "==> $*"; }
 
 # достаёт строковое поле из плоского JSON: json_str accessToken
-json_str() { sed -n "s/.*\"$1\":\"\([^\"]*\)\".*/\1/p"; }
+json_str() { sed -n "s/.*\"$1\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p"; }
+
+# то же для числового поля: json_num id
+json_num() { sed -n "s/.*\"$1\"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p" | head -1; }
 
 # expect_status 204 -X DELETE URL ...: сравнивает HTTP-код ответа
 expect_status() {
@@ -53,7 +56,8 @@ if [ "$EXPECT_PERSISTED" = true ]; then
   [ -n "$TOKEN" ] || fail "вход не удался: пользователь не сохранился"
   step "Задачи сохранились"
   COUNT=$(curl -fsS "$BASE_URL/tasks/my" -H "Authorization: Bearer $TOKEN" | grep -o '"title"' | wc -l)
-  [ "$COUNT" -ge 3 ] || fail "ожидали не меньше 3 задач, найдено: $COUNT"
+  # в первом прогоне создано 3 задачи и одну удалил ADMIN: после перезапуска должно остаться не меньше двух
+  [ "$COUNT" -ge 2 ] || fail "ожидали не меньше 2 задач после перезапуска, найдено: $COUNT"
   echo "OK: пользователь и $COUNT задач пережили перезапуск"
   exit 0
 fi
@@ -70,7 +74,7 @@ step "Создаём 3 задачи"
 FIRST_ID=""
 for title in "Купить молоко" "Написать отчёт" "Сдать домашнее задание"; do
   CREATED=$(json_post "$BASE_URL/tasks" "{\"title\":\"$title\",\"priority\":\"HIGH\"}" -H "Authorization: Bearer $TOKEN")
-  ID=$(echo "$CREATED" | sed -n 's/.*"id":\([0-9]*\).*/\1/p')
+  ID=$(echo "$CREATED" | json_num id)
   [ -n "$ID" ] || fail "задача не создана: $CREATED"
   [ -n "$FIRST_ID" ] || FIRST_ID="$ID"
 done
@@ -85,9 +89,9 @@ ADMIN_TOKEN=$(json_post "$BASE_URL/auth/login" "{\"email\":\"$ADMIN_EMAIL\",\"pa
 expect_status 204 -X DELETE "$BASE_URL/tasks/$FIRST_ID" -H "Authorization: Bearer $ADMIN_TOKEN"
 
 step "Чужую задачу обычный пользователь не удалит (403)"
-OTHER_ID=$(curl -fsS "$BASE_URL/tasks?size=100" -H "Authorization: Bearer $ADMIN_TOKEN" | sed -n 's/.*"id":\([0-9]*\).*/\1/p' | head -1)
+OTHER_ID=$(curl -fsS "$BASE_URL/tasks?size=100" -H "Authorization: Bearer $ADMIN_TOKEN" | json_num id)
 if [ -n "$OTHER_ID" ]; then
-  REG2=$(json_post "$BASE_URL/auth/register" "{\"email\":\"smoke-other-$(date +%s)@example.com\",\"password\":\"$SMOKE_PASSWORD\"}")
+  REG2=$(json_post "$BASE_URL/auth/register" "{\"email\":\"smoke-other-$(date +%s)-$RANDOM@example.com\",\"password\":\"$SMOKE_PASSWORD\"}")
   OTHER_TOKEN=$(echo "$REG2" | json_str accessToken)
   expect_status 403 -X DELETE "$BASE_URL/tasks/$OTHER_ID" -H "Authorization: Bearer $OTHER_TOKEN"
 fi
